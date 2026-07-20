@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Globe, ExternalLink, RotateCw, ChevronRight, Trash2 } from 'lucide-react';
 
 interface Channel {
@@ -23,6 +23,26 @@ interface WatchedChannelsProps {
 }
 
 export default function WatchedChannels({ channels, onDeleteChannel, onSelectDetails, onScanChannel }: WatchedChannelsProps) {
+  const [activeScanningId, setActiveScanningId] = useState<string | number | null>(null);
+
+  const handleScanClick = async (channel: Channel) => {
+    setActiveScanningId(channel.id);
+    try {
+      await onScanChannel(channel);
+    } finally {
+      setActiveScanningId(null);
+    }
+  };
+
+  const getFormattedScanTime = (timestamp?: string) => {
+    if (!timestamp) return 'Just now';
+    const dateObj = new Date(timestamp);
+    if (isNaN(dateObj.getTime())) return 'Just now';
+    const diffMs = Date.now() - dateObj.getTime();
+    if (diffMs < 0 || diffMs < 30000) return 'Just now';
+    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="lg:col-span-2 bg-[#09090B] border border-[#18181B] rounded-xl p-6 flex flex-col space-y-4">
       <div className="flex justify-between items-center border-b border-[#18181B] pb-4">
@@ -37,9 +57,8 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
       <div className="flex flex-col space-y-3">
         {channels.length > 0 ? (
           channels.map((channel) => {
-            const formattedTime = channel.last_scanned_at 
-              ? new Date(channel.last_scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : 'Just now';
+            const isScanningThis = activeScanningId === channel.id;
+            const formattedTime = getFormattedScanTime(channel.last_scanned_at);
 
             return (
               <div
@@ -52,8 +71,15 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#18181B] text-[#A1A1AA]">
                       {channel.interval}
                     </span>
-                    <span className="text-[9px] text-[#71717A] bg-[#18181B]/60 px-1.5 py-0.5 rounded">
-                      Last scan: {formattedTime}
+                    <span className="text-[9px] text-[#71717A] bg-[#18181B]/60 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      {isScanningThis ? (
+                        <>
+                          <RotateCw className="h-2.5 w-2.5 animate-spin text-white" />
+                          <span className="text-white font-semibold">Scanning...</span>
+                        </>
+                      ) : (
+                        `Last scan: ${formattedTime}`
+                      )}
                     </span>
                   </div>
                   <a
@@ -80,10 +106,11 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
 
                 <div className="flex items-center space-x-2">
                   <button 
-                    onClick={() => onScanChannel(channel)}
-                    className="p-2 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+                    onClick={() => handleScanClick(channel)}
+                    disabled={isScanningThis}
+                    className="p-2 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 disabled:opacity-50 transition-all cursor-pointer"
                   >
-                    <RotateCw className="h-4 w-4" />
+                    <RotateCw className={`h-4 w-4 ${isScanningThis ? 'animate-spin text-white' : ''}`} />
                   </button>
                   <button 
                     onClick={() => onSelectDetails(channel)}

@@ -41,8 +41,10 @@ export default function ChannelDetailsModal({ channel, onClose, onDelete, onScan
   // Calculate relative time string for Last Scanned indicator
   const getLastScannedText = (timestamp?: string) => {
     if (!timestamp) return 'Just now';
-    const diffMs = Date.now() - new Date(timestamp).getTime();
-    if (isNaN(diffMs)) return 'Just now';
+    const dateObj = new Date(timestamp);
+    if (isNaN(dateObj.getTime())) return 'Just now';
+    const diffMs = Date.now() - dateObj.getTime();
+    if (diffMs < 0 || diffMs < 30000) return 'Just now';
     const diffMins = Math.floor(diffMs / 60000);
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins} mins ago`;
@@ -156,7 +158,16 @@ export default function ChannelDetailsModal({ channel, onClose, onDelete, onScan
           <div className="flex flex-wrap gap-3 items-center justify-between bg-black p-4 rounded-xl border border-[#18181B]">
             <div className="flex items-center gap-2">
               <span className="text-xs text-[#71717A]">Last Scanned:</span>
-              <span className="text-xs text-white font-medium">{getLastScannedText(currentChannel.last_scanned_at)}</span>
+              <span className="text-xs text-white font-medium flex items-center gap-1.5">
+                {isScanning ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 animate-spin text-white" />
+                    <span>Scanning in progress...</span>
+                  </>
+                ) : (
+                  getLastScannedText(currentChannel.last_scanned_at)
+                )}
+              </span>
             </div>
             
             <div className="flex items-center gap-2">
