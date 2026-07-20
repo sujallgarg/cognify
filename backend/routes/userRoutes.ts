@@ -1,5 +1,5 @@
 import express from 'express';
-import { getUsers, registerUser, loginUser } from '../controllers/userController.js';
+import { getUsers, registerUser, loginUser, updateUserProfile } from '../controllers/userController.js';
 
 const router = express.Router();
 
@@ -11,5 +11,6 @@ const router = express.Router();
 // Route for authenticating/logging in a user
 router.post('/register', registerUser);
 router.post('/login', loginUser);
+router.put('/profile', updateUserProfile);
 
 export default router;

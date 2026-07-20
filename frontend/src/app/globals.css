@@ -9,6 +9,10 @@
   --color-muted: #9ca3af;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);

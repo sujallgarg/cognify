@@ -3,12 +3,17 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
+import channelRoutes from './routes/channelRoutes.js';
+import { startBackgroundScanner } from './services/scheduler.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 dotenv.config();
 
 // Connect to Database
 connectDB();
+
+// Start automated background scanner worker
+startBackgroundScanner();
 
 const app = express();
 
@@ -18,6 +23,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/users', userRoutes);
+app.use('/api/channels', channelRoutes);
 
 app.get('/', (req: express.Request, res: express.Response) => {
   res.send('API is running...');

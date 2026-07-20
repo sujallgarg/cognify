@@ -1,23 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { 
-  Eye, 
-  LayoutDashboard, 
-  History, 
-  Settings, 
-  CreditCard, 
-  LogOut, 
-  Bell, 
-  ChevronRight, 
-  Globe, 
-  ExternalLink, 
-  RotateCw, 
-  Trash2, 
-  ArrowRight, 
-  Activity 
-} from 'lucide-react';
+import { Bell, ChevronRight, Menu, X, Eye, LayoutDashboard, History, Settings, CreditCard, LogOut } from 'lucide-react';
+
+import Sidebar from '@/components/Sidebar';
+import StatsCards from '@/components/StatsCards';
+import WatchedChannels from '@/components/WatchedChannels';
+import QuickMonitor from '@/components/QuickMonitor';
+import RecentOperations from '@/components/RecentOperations';
+
+import TimelineHistoryTab from '@/components/TimelineHistoryTab';
+import SettingsTab from '@/components/SettingsTab';
+import BillingTab from '@/components/BillingTab';
+import ChannelDetailsModal from '@/components/ChannelDetailsModal';
 
 interface User {
   id: number;
@@ -27,12 +24,14 @@ interface User {
 }
 
 interface Channel {
-  id: string;
+  id: string | number;
   name: string;
   url: string;
   interval: string;
-  alertType?: string;
-  alertDesc?: string;
+  alert_type?: string;
+  alert_desc?: string;
+  original_text?: string;
+  last_text?: string;
 }
 
 export default function DashboardPage() {
@@ -47,39 +46,143 @@ export default function DashboardPage() {
   const [scanInterval, setScanInterval] = useState('Daily scans');
 
   // Channels state
-  const [channels, setChannels] = useState<Channel[]>([
-    {
-      id: '1',
-      name: 'OpenAI Pricing',
-      url: 'https://openai.com/pricing',
-      interval: 'DAILY',
-      alertType: 'HIGH ALERT',
-      alertDesc: 'API prompt caching pricing models updated'
-    },
-    {
-      id: '2',
-      name: 'Anthropic News',
-      url: 'https://anthropic.com/news',
-      interval: 'DAILY'
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+
+  // Stats state
+  const [scansCount, setScansCount] = useState(22);
+  const [summariesCount, setSummariesCount] = useState(4);
+
+  // Operations log state
+  interface OperationLog {
+    title: string;
+    time: string;
+  }
+  const [operations, setOperations] = useState<OperationLog[]>([]);
+
+  // Profile overlay states
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [subPlan, setSubPlan] = useState('FREE');
+
+  // Mobile drawer states
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // In-app notifications system
+  interface NotificationItem {
+    id: string;
+    title: string;
+    desc: string;
+    time: string;
+    unread: boolean;
+  }
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+
+  const fetchChannels = async (email: string) => {
+    try {
+      const response = await fetch(`${apiUrl}/api/channels?email=${email}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.length > 0) {
+          setChannels(data);
+        } else {
+          // If no channels exist in DB, create initial defaults for the user
+          const defaults = [
+            { name: 'OpenAI Pricing', url: 'https://openai.com/pricing', interval: 'DAILY' },
+            { name: 'Anthropic News', url: 'https://anthropic.com/news', interval: 'DAILY' }
+          ];
+
+          const created = [];
+          for (const item of defaults) {
+            const res = await fetch(`${apiUrl}/api/channels`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, ...item })
+            });
+            if (res.ok) {
+              const channelData = await res.json();
+              created.push(channelData);
+            }
+          }
+          setChannels(created);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch channels from API:', err);
     }
-  ]);
+  };
 
   useEffect(() => {
     const savedUser = localStorage.getItem('cognify_user');
     if (!savedUser) {
       router.push('/login');
-    } else {
-      try {
-        const u = JSON.parse(savedUser);
-        setUser(u);
-      } catch (e) {
-        localStorage.removeItem('cognify_user');
-        router.push('/login');
-      } finally {
-        setLoading(false);
-      }
+      return;
     }
-  }, [router]);
+
+    try {
+      const u = JSON.parse(savedUser);
+      setUser(u);
+      fetchChannels(u.email);
+
+      // Load user stats
+      const userScansKey = `cognify_scans_${u.email}`;
+      const userSummariesKey = `cognify_summaries_${u.email}`;
+      
+      const savedScans = localStorage.getItem(userScansKey);
+      if (savedScans) {
+        setScansCount(parseInt(savedScans, 10));
+      } else {
+        localStorage.setItem(userScansKey, '22');
+        setScansCount(22);
+      }
+
+      const savedSummaries = localStorage.getItem(userSummariesKey);
+      if (savedSummaries) {
+        setSummariesCount(parseInt(savedSummaries, 10));
+      } else {
+        localStorage.setItem(userSummariesKey, '4');
+        setSummariesCount(4);
+      }
+
+      // Load user operations
+      const userOpsKey = `cognify_ops_${u.email}`;
+      const savedOps = localStorage.getItem(userOpsKey);
+      if (savedOps) {
+        setOperations(JSON.parse(savedOps));
+      } else {
+        const initialOps = [
+          { title: 'Competitor pricing scan completed', time: '12 minutes ago • OpenAI Pricing' },
+          { title: 'Gemini AI diff analysis generated', time: '1 hour ago • Anthropic News' }
+        ];
+        setOperations(initialOps);
+        localStorage.setItem(userOpsKey, JSON.stringify(initialOps));
+      }
+
+      // Sync active subscription plan
+      const savedSub = localStorage.getItem(`cognify_sub_${u.email}`);
+      setSubPlan(savedSub || 'FREE');
+
+      // Load user notifications
+      const userNotifsKey = `cognify_notifs_${u.email}`;
+      const savedNotifs = localStorage.getItem(userNotifsKey);
+      if (savedNotifs) {
+        setNotifications(JSON.parse(savedNotifs));
+      } else {
+        const defaultNotifs = [
+          { id: '1', title: 'Intelligence Center Initialized', desc: 'Workspace scanning environment and database connection configured.', time: 'Just now', unread: true },
+        ];
+        setNotifications(defaultNotifs);
+        localStorage.setItem(userNotifsKey, JSON.stringify(defaultNotifs));
+      }
+    } catch (e) {
+      localStorage.removeItem('cognify_user');
+      router.push('/login');
+    } finally {
+      setLoading(false);
+    }
+  }, [router, activeTab]);
 
   const handleLogout = () => {
     localStorage.removeItem('cognify_user');
@@ -87,24 +190,192 @@ export default function DashboardPage() {
     router.push('/');
   };
 
-  const handleAddChannel = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetUrl) return;
+  const handleProfileUpdated = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('cognify_user', JSON.stringify(updatedUser));
+  };
 
-    const newChannel: Channel = {
-      id: Date.now().toString(),
-      name: channelName || new URL(targetUrl).hostname || 'New Channel',
-      url: targetUrl,
-      interval: scanInterval.split(' ')[0].toUpperCase()
+  const addOperation = (title: string, detail: string) => {
+    if (!user) return;
+    const newOp = {
+      title,
+      time: `Just now • ${detail}`
     };
+    const updatedOps = [newOp, ...operations.slice(0, 4)];
+    setOperations(updatedOps);
+    localStorage.setItem(`cognify_ops_${user.email}`, JSON.stringify(updatedOps));
+  };
 
-    setChannels([...channels, newChannel]);
+  const playNotificationSound = () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+      
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch (e) {
+      console.error('Audio play failed:', e);
+    }
+  };
+
+  const addNotification = (title: string, desc: string) => {
+    if (!user) return;
+    const newNotif: NotificationItem = {
+      id: Date.now().toString(),
+      title,
+      desc,
+      time: 'Just now',
+      unread: true
+    };
+    const updated = [newNotif, ...notifications.slice(0, 19)];
+    setNotifications(updated);
+    localStorage.setItem(`cognify_notifs_${user.email}`, JSON.stringify(updated));
+    playNotificationSound();
+  };
+
+  const handleAddChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUrl || !user) return;
+
+    // Check if duplicate URL is already added (exact match, ignoring case/spacing)
+    const isDuplicate = channels.some(
+      (c) => c.url.trim().toLowerCase() === targetUrl.trim().toLowerCase()
+    );
+    if (isDuplicate) {
+      alert('This URL is already under monitor.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${apiUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          name: channelName || new URL(targetUrl).hostname || 'New Target',
+          url: targetUrl,
+          interval: scanInterval.split(' ')[0].toUpperCase()
+        })
+      });
+
+      if (response.ok) {
+        const newChan = await response.json();
+        setChannels([newChan, ...channels]);
+
+        // Log operation
+        addOperation('Created new website monitor', newChan.name);
+        
+        // Add notification
+        addNotification('Website Monitor Added', `Started monitoring: ${newChan.name}`);
+
+        // Increment scans and summaries on channel creation
+        const newScans = scansCount + 1;
+        const newSummaries = summariesCount + 1;
+        setScansCount(newScans);
+        setSummariesCount(newSummaries);
+        localStorage.setItem(`cognify_scans_${user.email}`, newScans.toString());
+        localStorage.setItem(`cognify_summaries_${user.email}`, newSummaries.toString());
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
     setTargetUrl('');
     setChannelName('');
   };
 
-  const handleDeleteChannel = (id: string) => {
-    setChannels(channels.filter(c => c.id !== id));
+  const handleDeleteChannel = async (id: string | number) => {
+    if (!user) return;
+    const channelToDelete = channels.find(c => c.id === id);
+    try {
+      const response = await fetch(`${apiUrl}/api/channels/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        setChannels(channels.filter(c => c.id !== id));
+        if (channelToDelete) {
+          addOperation('Removed website monitor', channelToDelete.name);
+          addNotification('Website Monitor Removed', `Stopped monitoring: ${channelToDelete.name}`);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleManualScan = (updatedChannel: Channel) => {
+    if (!user) return;
+    
+    // Update the channel inside the state list
+    setChannels(channels.map(c => c.id === updatedChannel.id ? updatedChannel : c));
+    
+    // If the modal was open for this channel, update the modal details too
+    if (selectedChannel && selectedChannel.id === updatedChannel.id) {
+      setSelectedChannel(updatedChannel);
+    }
+
+    addOperation(
+      updatedChannel.alert_type ? 'Change alert triggered' : 'Scan completed - No changes',
+      updatedChannel.name
+    );
+
+    addNotification(
+      updatedChannel.alert_type ? '🚨 Change Detected!' : 'Scan Run Completed',
+      updatedChannel.alert_type 
+        ? `Page content modified on: ${updatedChannel.name}` 
+        : `Verified content matches target: ${updatedChannel.name}`
+    );
+
+    const newScans = scansCount + 1;
+    const newSummaries = updatedChannel.alert_type ? summariesCount + 1 : summariesCount;
+    setScansCount(newScans);
+    setSummariesCount(newSummaries);
+    localStorage.setItem(`cognify_scans_${user.email}`, newScans.toString());
+    localStorage.setItem(`cognify_summaries_${user.email}`, newSummaries.toString());
+  };
+
+  const handleReloadChannel = async (channel: Channel) => {
+    if (!user || !channel || !channel.id) return;
+    try {
+      // Retrieve custom alert destination email if configured
+      let customAlertEmail = '';
+      const settings = localStorage.getItem(`cognify_settings_${user.email}`);
+      if (settings) {
+        try {
+          const parsed = JSON.parse(settings);
+          if (parsed.emailAlerts && parsed.alertEmail) {
+            customAlertEmail = parsed.alertEmail;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      const response = await fetch(`${apiUrl}/api/channels/${channel.id}/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alertEmail: customAlertEmail })
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        handleManualScan(updated);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   if (loading || !user) {
@@ -115,290 +386,295 @@ export default function DashboardPage() {
     );
   }
 
+  // Helper helper to get breadcrumb label
+  const getBreadcrumbLabel = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return 'Dashboard';
+      case 'history':
+        return 'Timeline History';
+      case 'settings':
+        return 'Settings & Alerts';
+      case 'billing':
+        return 'Billing & Usage';
+      default:
+        return 'Workspace';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-[#F4F4F5] flex font-sans overflow-x-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 bg-[#09090B] border-r border-[#18181B] flex flex-col justify-between p-4 shrink-0">
-        <div className="flex flex-col space-y-8">
-          {/* Logo */}
-          <div className="flex items-center space-x-2 px-2 py-1">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-tr from-white to-[#A1A1AA] flex items-center justify-center shadow-md">
-              <Eye className="h-4.5 w-4.5 text-black" />
-            </div>
-            <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white to-[#E4E4E7] bg-clip-text text-transparent flex items-center gap-1.5">
-              Cognify <span className="text-xs font-normal border border-white/20 px-1.5 py-0.25 rounded-md bg-white/5">AI</span>
-            </span>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="flex flex-col space-y-1">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`w-full rounded-lg px-3 py-2 flex items-center gap-3 transition-colors text-sm font-medium ${
-                activeTab === 'dashboard'
-                  ? 'bg-[#18181B] text-white'
-                  : 'text-[#A1A1AA] hover:text-white hover:bg-white/[0.02]'
-              }`}
-            >
-              <LayoutDashboard className="h-4.5 w-4.5" />
-              <span>Dashboard</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`w-full rounded-lg px-3 py-2 flex items-center gap-3 transition-colors text-sm font-medium ${
-                activeTab === 'history'
-                  ? 'bg-[#18181B] text-white'
-                  : 'text-[#A1A1AA] hover:text-white hover:bg-white/[0.02]'
-              }`}
-            >
-              <History className="h-4.5 w-4.5" />
-              <span>Timeline History</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`w-full rounded-lg px-3 py-2 flex items-center gap-3 transition-colors text-sm font-medium ${
-                activeTab === 'settings'
-                  ? 'bg-[#18181B] text-white'
-                  : 'text-[#A1A1AA] hover:text-white hover:bg-white/[0.02]'
-              }`}
-            >
-              <Settings className="h-4.5 w-4.5" />
-              <span>Settings & Alerts</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('billing')}
-              className={`w-full rounded-lg px-3 py-2 flex items-center gap-3 transition-colors text-sm font-medium ${
-                activeTab === 'billing'
-                  ? 'bg-[#18181B] text-white'
-                  : 'text-[#A1A1AA] hover:text-white hover:bg-white/[0.02]'
-              }`}
-            >
-              <CreditCard className="h-4.5 w-4.5" />
-              <span>Billing & Usage</span>
-            </button>
-          </nav>
-        </div>
-
-        {/* Bottom Actions */}
-        <div className="border-t border-[#18181B] pt-4">
-          <button
-            onClick={handleLogout}
-            className="w-full rounded-lg px-3 py-2 flex items-center gap-3 text-left text-sm font-medium text-[#A1A1AA] hover:text-white hover:bg-white/[0.02] transition-colors cursor-pointer"
-          >
-            <LogOut className="h-4.5 w-4.5" />
-            <span>Sign Out</span>
-          </button>
-        </div>
-      </aside>
+      {/* Sidebar Component */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onLogout={handleLogout}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Top Navbar */}
-        <header className="h-14 border-b border-[#18181B] bg-black px-8 flex justify-between items-center">
-          <div className="flex items-center space-x-2 text-xs text-[#71717A] font-medium">
-            <span>Workspace</span>
-            <ChevronRight className="h-3 w-3" />
-            {/* <span className="text-[#F4F4F5]">Demo Workspace</span> */}
+        <header className="h-14 border-b border-[#18181B] bg-black px-4 md:px-8 flex justify-between items-center">
+          <div className="flex items-center space-x-3">
+            {/* Mobile Menu Toggler */}
+            <button 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-1.5 rounded-lg text-[#A1A1AA] hover:text-white hover:bg-white/[0.02] transition-colors cursor-pointer"
+            >
+              <Menu className="h-4.5 w-4.5" />
+            </button>
+            <div className="flex items-center space-x-2 text-xs text-[#71717A] font-medium">
+              <button 
+                onClick={() => setActiveTab('dashboard')} 
+                className="hover:text-white transition-colors cursor-pointer"
+              >
+                Workspace
+              </button>
+              <ChevronRight className="h-3 w-3" />
+              <span className="text-[#F4F4F5]">{getBreadcrumbLabel()}</span>
+            </div>
           </div>
           
-          <div className="flex items-center space-x-4">
-            <button className="p-1.5 rounded-lg text-[#A1A1AA] hover:text-white hover:bg-white/[0.02] transition-colors relative">
+          <div className="flex items-center space-x-4 relative">
+            <button 
+              onClick={() => {
+                setShowNotificationsMenu(!showNotificationsMenu);
+                // Mark notifications as read when menu is toggled open
+                if (!showNotificationsMenu) {
+                  const readNotifs = notifications.map(n => ({ ...n, unread: false }));
+                  setNotifications(readNotifs);
+                  localStorage.setItem(`cognify_notifs_${user.email}`, JSON.stringify(readNotifs));
+                }
+              }}
+              className="p-1.5 rounded-lg text-[#A1A1AA] hover:text-white hover:bg-white/[0.02] transition-colors relative cursor-pointer"
+            >
               <Bell className="h-4.5 w-4.5" />
-              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-red-500" />
+              {notifications.some(n => n.unread) && (
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-red-500" />
+              )}
             </button>
-            <div className="h-7 w-7 rounded-full bg-[#E4E4E7] border border-[#27272A] flex items-center justify-center font-semibold text-xs text-black shadow-inner select-none cursor-pointer">
+
+            {/* Notifications Dropdown Menu */}
+            {showNotificationsMenu && (
+              <div className="absolute right-10 top-10 w-80 bg-[#09090B] border border-[#18181B] rounded-xl p-4 shadow-2xl z-50 text-left space-y-3 animate-fadeIn">
+                <div className="border-b border-[#18181B] pb-3 flex justify-between items-center">
+                  <span className="text-xs font-bold text-white">Notifications</span>
+                  <span className="text-[9px] text-[#71717A] uppercase tracking-wider">{notifications.length} logs</span>
+                </div>
+                <div className="max-h-64 overflow-y-auto flex flex-col space-y-3 pr-1">
+                  {notifications.length > 0 ? (
+                    notifications.map(notif => (
+                      <div key={notif.id} className="space-y-0.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-white flex items-center gap-1.5">
+                            {notif.unread && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+                            {notif.title}
+                          </span>
+                          <span className="text-[9px] text-[#71717A]">{notif.time}</span>
+                        </div>
+                        <p className="text-[10px] text-[#A1A1AA] leading-normal">{notif.desc}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-[11px] text-[#71717A] italic py-2 text-center">No notifications recorded.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div 
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="h-7 w-7 rounded-full bg-[#E4E4E7] border border-[#27272A] flex items-center justify-center font-semibold text-xs text-black shadow-inner select-none cursor-pointer hover:bg-white transition-colors"
+            >
               {user.name.substring(0, 2).toUpperCase()}
             </div>
+
+            {/* Profile Dropdown Menu */}
+            {showProfileMenu && (
+              <div className="absolute right-0 top-10 w-64 bg-[#09090B] border border-[#18181B] rounded-xl p-4 shadow-2xl z-50 text-left space-y-3 animate-fadeIn">
+                <div className="border-b border-[#18181B] pb-3 space-y-0.5">
+                  <p className="text-xs font-bold text-white leading-none">{user.name}</p>
+                  <p className="text-[10px] text-[#71717A] truncate">{user.email}</p>
+                </div>
+                <div className="space-y-1.5 text-[11px] text-[#A1A1AA]">
+                  <div className="flex justify-between">
+                    <span>Active Plan:</span>
+                    <span className="font-bold text-white">{subPlan === 'PROFESSIONAL' ? 'Professional' : 'Free Starter'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Scans Usage:</span>
+                    <span className="text-white font-medium">{scansCount} / {subPlan === 'PROFESSIONAL' ? '10k' : '100'}</span>
+                  </div>
+                </div>
+                <div className="border-t border-[#18181B] pt-3 flex flex-col gap-1">
+                  <button 
+                    onClick={() => {
+                      setActiveTab('billing');
+                      setShowProfileMenu(false);
+                    }}
+                    className="w-full text-left py-1 px-2 hover:bg-white/5 rounded text-xs text-white transition-colors cursor-pointer"
+                  >
+                    Billing & Plan Settings
+                  </button>
+                  <button 
+                    onClick={() => {
+                      handleLogout();
+                      setShowProfileMenu(false);
+                    }}
+                    className="w-full text-left py-1 px-2 hover:bg-red-500/10 hover:text-red-400 rounded text-xs text-red-500 transition-colors cursor-pointer"
+                  >
+                    Log Out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
         {/* Dashboard Panels */}
         <main className="flex-1 p-8 flex flex-col space-y-6 max-w-7xl w-full mx-auto text-left">
           
-          {/* Header text */}
-          <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-white">Intelligence Center</h1>
-            <p className="text-xs text-[#71717A]">Real-time status updates and monitored website channels.</p>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-[#09090B] p-5 rounded-xl border border-[#18181B] flex flex-col justify-between min-h-[92px]">
-              <span className="text-[10px] font-bold text-[#71717A] uppercase tracking-wider">Websites Monitored</span>
-              <span className="text-2xl font-extrabold text-white mt-2">{channels.length}</span>
-            </div>
-            
-            <div className="bg-[#09090B] p-5 rounded-xl border border-[#18181B] flex flex-col justify-between min-h-[92px]">
-              <span className="text-[10px] font-bold text-[#71717A] uppercase tracking-wider">AI Summaries Generated</span>
-              <span className="text-2xl font-extrabold text-white mt-2">4</span>
-            </div>
-
-            <div className="bg-[#09090B] p-5 rounded-xl border border-[#18181B] flex flex-col justify-between min-h-[92px]">
-              <span className="text-[10px] font-bold text-[#71717A] uppercase tracking-wider">Reading Time Saved</span>
-              <span className="text-2xl font-extrabold text-white mt-2">60 mins</span>
-            </div>
-
-            <div className="bg-[#09090B] p-5 rounded-xl border border-[#18181B] flex flex-col justify-between min-h-[92px]">
-              <span className="text-[10px] font-bold text-[#71717A] uppercase tracking-wider">Total Scans Performed</span>
-              <span className="text-2xl font-extrabold text-[#22C55E] mt-2">22</span>
-            </div>
-          </div>
-
-          {/* Main Workspace Split Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            
-            {/* Left Columns (Watched Channels) */}
-            <div className="lg:col-span-2 bg-[#09090B] border border-[#18181B] rounded-xl p-6 flex flex-col space-y-4">
-              <div className="flex justify-between items-center border-b border-[#18181B] pb-4">
-                <div className="flex items-center gap-2">
-                  <Globe className="h-4.5 w-4.5 text-[#A1A1AA]" />
-                  <h3 className="font-semibold text-white text-sm">Watched Channels</h3>
-                </div>
-                <span className="text-xs text-[#71717A]">{channels.length} Channels Total</span>
+          {activeTab === 'dashboard' && (
+            <>
+              {/* Header text */}
+              <div className="space-y-1">
+                <h1 className="text-2xl font-bold tracking-tight text-white">Intelligence Center</h1>
+                <p className="text-xs text-[#71717A]">Real-time status updates and monitored website channels.</p>
               </div>
 
-              {/* Channels List */}
-              <div className="flex flex-col space-y-3">
-                {channels.map((channel) => (
-                  <div key={channel.id} className="p-4 rounded-xl bg-black border border-[#18181B] flex items-center justify-between text-sm hover:border-[#27272A] transition-all">
-                    <div className="flex flex-col space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white">{channel.name}</span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#18181B] text-[#A1A1AA]">
-                          {channel.interval}
-                        </span>
-                      </div>
-                      <a href={channel.url} target="_blank" rel="noreferrer" className="text-xs text-[#71717A] hover:text-white flex items-center gap-1">
-                        {channel.url}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                      
-                      {channel.alertType && (
-                        <div className="mt-2 flex items-start gap-2">
-                          <span className="text-[9px] font-bold bg-[#FEF3C7] text-[#D97706] px-1.5 py-0.5 rounded shrink-0">
-                            {channel.alertType}
-                          </span>
-                          <span className="text-xs text-[#E4E4E7] font-medium leading-relaxed">
-                            {channel.alertDesc}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <button className="p-2 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-all">
-                        <RotateCw className="h-4 w-4" />
-                      </button>
-                      <button className="px-3.5 py-1.5 rounded-lg border border-[#27272A] hover:border-[#3F3F46] text-xs font-semibold text-white hover:bg-white/5 transition-all flex items-center gap-1">
-                        Details <ChevronRight className="h-3 w-3" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteChannel(channel.id)} 
-                        className="p-2 rounded-lg text-[#71717A] hover:text-red-500 hover:bg-white/5 transition-all"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              {/* Stats Cards Component */}
+              <StatsCards 
+                channelsCount={channels.length} 
+                summariesCount={summariesCount}
+                timeSavedMins={scansCount * 3}
+                scansCount={scansCount}
+              />
 
-            {/* Right Column (Forms & Activity) */}
-            <div className="flex flex-col space-y-6">
-              
-              {/* Quick Monitor Card */}
-              <div className="bg-[#09090B] border border-[#18181B] rounded-xl p-6">
-                <h3 className="font-semibold text-white text-sm mb-4 flex items-center gap-2">
-                  <span>+</span> Quick Monitor
-                </h3>
-                <form onSubmit={handleAddChannel} className="space-y-4">
-                  <div className="space-y-1 text-left">
-                    <label className="text-[10px] font-semibold text-[#71717A] uppercase tracking-wider">Target URL</label>
-                    <input
-                      type="url"
-                      required
-                      placeholder="https://example.com/pricing"
-                      value={targetUrl}
-                      onChange={(e) => setTargetUrl(e.target.value)}
-                      className="w-full bg-black border border-[#18181B] focus:border-[#27272A] rounded-lg py-2 px-3 text-xs text-white placeholder-[#3F3F46] focus:outline-none transition-colors"
-                    />
-                  </div>
+              {/* Main Workspace Split Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                
+                {/* Left Columns (Watched Channels) Component */}
+                <WatchedChannels
+                  channels={channels}
+                  onDeleteChannel={handleDeleteChannel}
+                  onSelectDetails={(channel) => setSelectedChannel(channel)}
+                  onScanChannel={handleReloadChannel}
+                />
 
-                  <div className="space-y-1 text-left">
-                    <label className="text-[10px] font-semibold text-[#71717A] uppercase tracking-wider">Channel Name (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Stripe Pricing"
-                      value={channelName}
-                      onChange={(e) => setChannelName(e.target.value)}
-                      className="w-full bg-black border border-[#18181B] focus:border-[#27272A] rounded-lg py-2 px-3 text-xs text-white placeholder-[#3F3F46] focus:outline-none transition-colors"
-                    />
-                  </div>
+                {/* Right Column (Forms & Activity) */}
+                <div className="flex flex-col space-y-6">
+                  
+                  {/* Quick Monitor Component */}
+                  <QuickMonitor
+                    targetUrl={targetUrl}
+                    setTargetUrl={setTargetUrl}
+                    channelName={channelName}
+                    setChannelName={setChannelName}
+                    scanInterval={scanInterval}
+                    setScanInterval={setScanInterval}
+                    onSubmit={handleAddChannel}
+                  />
 
-                  <div className="space-y-1 text-left">
-                    <label className="text-[10px] font-semibold text-[#71717A] uppercase tracking-wider">Scan Interval</label>
-                    <select
-                      value={scanInterval}
-                      onChange={(e) => setScanInterval(e.target.value)}
-                      className="w-full bg-black border border-[#18181B] focus:border-[#27272A] rounded-lg py-2 px-3 text-xs text-white focus:outline-none transition-colors cursor-pointer"
-                    >
-                      <option>Daily scans</option>
-                      <option>Hourly scans</option>
-                      <option>Weekly scans</option>
-                    </select>
-                  </div>
+                  {/* Recent Operations Component */}
+                  <RecentOperations operations={operations} />
 
-                  <button
-                    type="submit"
-                    className="w-full bg-white hover:bg-neutral-200 text-black text-xs font-semibold py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-2"
-                  >
-                    <span>Launch Cognify</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </form>
-              </div>
-
-              {/* Recent Operations */}
-              <div className="bg-[#09090B] border border-[#18181B] rounded-xl p-6 flex flex-col space-y-4">
-                <div className="flex items-center gap-2 border-b border-[#18181B] pb-3">
-                  <Activity className="h-4.5 w-4.5 text-[#22C55E]" />
-                  <h3 className="font-semibold text-white text-sm">Recent Operations</h3>
                 </div>
 
-                <div className="flex flex-col space-y-4 text-xs">
-                  <div className="flex gap-3">
-                    <div className="w-0.5 bg-[#18181B] relative">
-                      <div className="absolute top-1.5 left-[-3px] w-2 h-2 rounded-full bg-[#22C55E]" />
-                    </div>
-                    <div className="flex-1 space-y-0.5">
-                      <p className="text-white font-medium">Competitor pricing scan completed</p>
-                      <p className="text-[#71717A]">12 minutes ago • OpenAI Pricing</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="w-0.5 bg-[#18181B] relative">
-                      <div className="absolute top-1.5 left-[-3px] w-2 h-2 rounded-full bg-[#22C55E]" />
-                    </div>
-                    <div className="flex-1 space-y-0.5">
-                      <p className="text-white font-medium">Gemini AI diff analysis generated</p>
-                      <p className="text-[#71717A]">1 hour ago • Anthropic News</p>
-                    </div>
-                  </div>
-                </div>
               </div>
+            </>
+          )}
 
-            </div>
+          {activeTab === 'history' && <TimelineHistoryTab userEmail={user.email} />}
 
-          </div>
+          {activeTab === 'settings' && <SettingsTab userEmail={user.email} onProfileUpdated={handleProfileUpdated} />}
+
+          {activeTab === 'billing' && (
+            <BillingTab 
+              userEmail={user.email} 
+              scansCount={scansCount} 
+              summariesCount={summariesCount} 
+              onAddNotification={addNotification}
+            />
+          )}
 
         </main>
       </div>
+
+      {selectedChannel && (
+        <ChannelDetailsModal
+          channel={selectedChannel}
+          onClose={() => setSelectedChannel(null)}
+          onDelete={handleDeleteChannel}
+          onScanTriggered={handleManualScan}
+        />
+      )}
+
+      {/* Mobile Drawer Menu */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 md:hidden flex justify-start animate-fadeIn">
+          <div className="w-64 bg-[#09090B] border-r border-[#18181B] h-full flex flex-col p-4 space-y-6">
+            <div className="flex items-center justify-between border-b border-[#18181B] pb-4">
+              <Link 
+                href="/" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center space-x-2 cursor-pointer hover:opacity-85 transition-opacity"
+              >
+                <div className="h-7 w-7 rounded-lg bg-gradient-to-tr from-white to-[#A1A1AA] flex items-center justify-center">
+                  <Eye className="h-4.5 w-4.5 text-black" />
+                </div>
+                <span className="font-extrabold text-sm text-white">Cognify AI</span>
+              </Link>
+              <button 
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1 rounded bg-[#18181B] text-white hover:bg-[#27272A] transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <nav className="flex flex-col space-y-1.5 flex-1">
+              {[
+                { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+                { id: 'history', name: 'Timeline History', icon: History },
+                { id: 'settings', name: 'Settings & Alerts', icon: Settings },
+                { id: 'billing', name: 'Billing & Usage', icon: CreditCard },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full rounded-lg px-3 py-2 flex items-center gap-3 transition-all text-sm font-medium text-left cursor-pointer ${
+                      activeTab === item.id
+                        ? 'bg-[#18181B] text-white shadow-sm'
+                        : 'text-[#A1A1AA] hover:text-white hover:bg-white/[0.02]'
+                    }`}
+                  >
+                    <Icon className="h-4.5 w-4.5" />
+                    <span>{item.name}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="border-t border-[#18181B] pt-4">
+              <button
+                onClick={() => {
+                  handleLogout();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full rounded-lg px-3 py-2 flex items-center gap-3 text-left text-sm font-medium text-[#A1A1AA] hover:text-white hover:bg-white/[0.02] transition-colors cursor-pointer"
+              >
+                <LogOut className="h-4.5 w-4.5" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

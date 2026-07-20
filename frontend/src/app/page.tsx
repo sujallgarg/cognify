@@ -106,7 +106,7 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground relative overflow-hidden flex flex-col justify-between">
+    <div className="min-h-screen bg-background text-foreground relative overflow-x-clip flex flex-col justify-between">
       {/* Background gradients */}
       <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-primary/5 blur-[150px] -z-10 pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-accent/5 blur-[150px] -z-10 pointer-events-none" />
@@ -114,7 +114,7 @@ export default function LandingPage() {
       <Header />
 
       {/* Hero Section */}
-      <section className="py-20 md:py-32 px-6 md:px-12 max-w-7xl mx-auto flex flex-col items-center text-center">
+      <section id="hero" className="py-20 md:py-32 px-6 md:px-12 max-w-7xl mx-auto flex flex-col items-center text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
