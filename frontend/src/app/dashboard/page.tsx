@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, ChevronRight, Menu, X, Eye, LayoutDashboard, History, Settings, CreditCard, LogOut } from 'lucide-react';
+import { Bell, ChevronRight, Menu, X, Eye, LayoutDashboard, History, Settings, CreditCard, LogOut, Sparkles } from 'lucide-react';
 
 import Sidebar from '@/components/Sidebar';
 import StatsCards from '@/components/StatsCards';
@@ -491,38 +491,72 @@ export default function DashboardPage() {
 
             {/* Profile Dropdown Menu */}
             {showProfileMenu && (
-              <div className="absolute right-0 top-10 w-64 bg-[#09090B] border border-[#18181B] rounded-xl p-4 shadow-2xl z-50 text-left space-y-3 animate-fadeIn">
-                <div className="border-b border-[#18181B] pb-3 space-y-0.5">
-                  <p className="text-xs font-bold text-white leading-none">{user.name}</p>
-                  <p className="text-[10px] text-[#71717A] truncate">{user.email}</p>
+              <div className="absolute right-0 top-10 w-72 bg-[#09090B] border border-[#18181B] rounded-2xl p-5 shadow-2xl z-50 text-left space-y-4 animate-fadeIn">
+                <div className="border-b border-[#18181B] pb-3 space-y-1">
+                  <p className="text-sm font-bold text-white leading-none">{user.name}</p>
+                  <p className="text-xs text-[#71717A] truncate">{user.email}</p>
                 </div>
-                <div className="space-y-1.5 text-[11px] text-[#A1A1AA]">
-                  <div className="flex justify-between">
-                    <span>Active Plan:</span>
-                    <span className="font-bold text-white">{subPlan === 'PROFESSIONAL' ? 'Professional' : 'Free Starter'}</span>
+                
+                {/* Active Plan Details */}
+                <div className="p-3 bg-black border border-[#18181B] rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#71717A]">Active Plan:</span>
+                    <span className="text-xs font-bold text-white px-2 py-0.5 rounded bg-[#18181B] border border-white/10">
+                      {subPlan === 'PROFESSIONAL' ? 'Professional' : 'Free Starter'}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Scans Usage:</span>
-                    <span className="text-white font-medium">{scansCount} / {subPlan === 'PROFESSIONAL' ? '10k' : '100'}</span>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] text-[#A1A1AA]">
+                      <span>Scans Limit</span>
+                      <span>{scansCount} / {subPlan === 'PROFESSIONAL' ? '10,000' : '100'}</span>
+                    </div>
+                    <div className="w-full h-1 bg-[#18181B] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-white rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, (scansCount / (subPlan === 'PROFESSIONAL' ? 10000 : 100)) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] text-[#A1A1AA]">
+                      <span>AI Summaries</span>
+                      <span>{summariesCount} / {subPlan === 'PROFESSIONAL' ? '1,000' : '15'}</span>
+                    </div>
+                    <div className="w-full h-1 bg-[#18181B] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-white rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, (summariesCount / (subPlan === 'PROFESSIONAL' ? 1000 : 15)) * 100)}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="border-t border-[#18181B] pt-3 flex flex-col gap-1">
-                  <button 
-                    onClick={() => {
-                      setActiveTab('billing');
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full text-left py-1 px-2 hover:bg-white/5 rounded text-xs text-white transition-colors cursor-pointer"
-                  >
-                    Billing & Plan Settings
-                  </button>
+
+                {/* Explore More Plans Action Button */}
+                <button 
+                  onClick={() => {
+                    setActiveTab('billing');
+                    setShowProfileMenu(false);
+                  }}
+                  className="w-full py-2.5 px-3 bg-white hover:bg-neutral-200 text-black text-xs font-semibold rounded-xl flex items-center justify-between transition-all cursor-pointer shadow-md"
+                >
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <Sparkles className="h-3.5 w-3.5 text-black" />
+                    Explore More Plans
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+
+                <div className="border-t border-[#18181B] pt-2">
                   <button 
                     onClick={() => {
                       handleLogout();
                       setShowProfileMenu(false);
                     }}
-                    className="w-full text-left py-1 px-2 hover:bg-red-500/10 hover:text-red-400 rounded text-xs text-red-500 transition-colors cursor-pointer"
+                    className="w-full text-left py-1.5 px-2 hover:bg-red-500/10 hover:text-red-400 rounded-lg text-xs text-red-500 transition-colors cursor-pointer flex items-center gap-2"
                   >
+                    <LogOut className="h-3.5 w-3.5" />
                     Log Out
                   </button>
                 </div>

@@ -47,7 +47,8 @@ const connectDB = async () => {
       );
     `;
     await client.query(createChannelsTableQuery);
-    await client.query('ALTER TABLE channels ADD COLUMN IF NOT EXISTS last_scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+    await client.query('ALTER TABLE channels ADD COLUMN IF NOT EXISTS last_scanned_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
+    await client.query('ALTER TABLE channels ALTER COLUMN last_scanned_at TYPE TIMESTAMPTZ USING last_scanned_at AT TIME ZONE \'UTC\'');
 
     // Auto-create scan_history table
     const createScanHistoryTableQuery = `
@@ -57,7 +58,7 @@ const connectDB = async () => {
         name VARCHAR(100) NOT NULL,
         url VARCHAR(255) NOT NULL,
         user_email VARCHAR(100) NOT NULL,
-        scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        scan_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         status_type VARCHAR(50) NOT NULL,
         description TEXT DEFAULT '',
         original_text TEXT DEFAULT '',

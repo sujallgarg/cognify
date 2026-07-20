@@ -34,10 +34,19 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
     }
   };
 
+  const parseUTCDate = (str?: string) => {
+    if (!str) return new Date();
+    let isoStr = str.trim();
+    if (!isoStr.endsWith('Z') && !isoStr.includes('+') && !isoStr.includes('GMT')) {
+      isoStr = isoStr.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(isoStr);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+
   const getFormattedScanTime = (timestamp?: string) => {
     if (!timestamp) return 'Just now';
-    const dateObj = new Date(timestamp);
-    if (isNaN(dateObj.getTime())) return 'Just now';
+    const dateObj = parseUTCDate(timestamp);
     const diffMs = Date.now() - dateObj.getTime();
     if (diffMs < 0 || diffMs < 30000) return 'Just now';
     return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

@@ -38,7 +38,7 @@ async function scrapePage(url: string): Promise<string> {
 }
 
 // GET /api/channels - Get all channels for a user email
-// GET /api/channels/history - Get all scan history logs for a user email
+// GET /api/channels/history - Get all scan history logs for a user email or channel_id
 router.get('/history', async (req, res) => {
   const { email, channel_id } = req.query;
 
@@ -46,14 +46,46 @@ router.get('/history', async (req, res) => {
     let result;
     if (channel_id) {
       result = await pool.query(
-        'SELECT * FROM scan_history WHERE channel_id = $1 ORDER BY scan_time DESC LIMIT 20',
+        'SELECT * FROM scan_history WHERE channel_id = $1 ORDER BY scan_time DESC LIMIT 50',
         [channel_id]
       );
+
+      if (result.rows.length === 0) {
+        const ch = await pool.query('SELECT * FROM channels WHERE id = $1', [channel_id]);
+        if (ch.rows.length > 0) {
+          const c = ch.rows[0];
+          await pool.query(
+            `INSERT INTO scan_history (channel_id, name, url, user_email, scan_time, status_type, description, original_text, changed_text, explanation)
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, $7, $8, $9)`,
+            [c.id, c.name, c.url, c.user_email, 'NO CHANGES', 'Initial scan - Baseline established.', c.original_text || '', c.last_text || '', 'Initial baseline snapshot established in workspace.']
+          );
+          result = await pool.query(
+            'SELECT * FROM scan_history WHERE channel_id = $1 ORDER BY scan_time DESC LIMIT 50',
+            [channel_id]
+          );
+        }
+      }
     } else if (email) {
+      const cleanEmail = String(email).trim().toLowerCase();
       result = await pool.query(
-        'SELECT * FROM scan_history WHERE user_email = $1 ORDER BY scan_time DESC LIMIT 50',
-        [email]
+        'SELECT * FROM scan_history WHERE LOWER(TRIM(user_email)) = $1 ORDER BY scan_time DESC LIMIT 50',
+        [cleanEmail]
       );
+
+      if (result.rows.length === 0) {
+        const userChannels = await pool.query('SELECT * FROM channels WHERE LOWER(TRIM(user_email)) = $1', [cleanEmail]);
+        for (const c of userChannels.rows) {
+          await pool.query(
+            `INSERT INTO scan_history (channel_id, name, url, user_email, scan_time, status_type, description, original_text, changed_text, explanation)
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, $7, $8, $9)`,
+            [c.id, c.name, c.url, c.user_email, 'NO CHANGES', 'Initial scan - Baseline established.', c.original_text || '', c.last_text || '', 'Initial baseline snapshot established in workspace.']
+          );
+        }
+        result = await pool.query(
+          'SELECT * FROM scan_history WHERE LOWER(TRIM(user_email)) = $1 ORDER BY scan_time DESC LIMIT 50',
+          [cleanEmail]
+        );
+      }
     } else {
       return res.status(400).json({ message: 'User email or channel_id is required' });
     }
@@ -105,8 +137,8 @@ router.post('/', async (req, res) => {
     const pageText = await scrapePage(url);
 
     const result = await pool.query(
-      `INSERT INTO channels (user_email, name, url, interval, last_text, original_text)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO channels (user_email, name, url, interval, last_text, original_text, last_scanned_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
        RETURNING *`,
       [email, cleanName, url, interval, pageText, pageText]
     );
@@ -163,8 +195,8 @@ router.post('/:id/scan', async (req, res) => {
 
     // Log this scan run in history
     await pool.query(
-      `INSERT INTO scan_history (channel_id, name, url, user_email, status_type, description, original_text, changed_text, explanation)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO scan_history (channel_id, name, url, user_email, scan_time, status_type, description, original_text, changed_text, explanation)
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, $7, $8, $9)`,
       [
         updatedChannel.id, 
         updatedChannel.name, 

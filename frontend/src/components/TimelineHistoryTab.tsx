@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Clock, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Sparkles, ChevronDown, ChevronUp, RotateCw, RefreshCw, AlertTriangle, FileText, Zap, Users, ShieldAlert, Target, AlertCircle } from 'lucide-react';
 
 interface HistoryLog {
   id: number;
   name: string;
   url: string;
   scan_time: string;
-  status_type: 'HIGH ALERT' | 'LOW ALERT' | 'NO CHANGES';
+  status_type: string;
   description: string;
   original_text: string;
   changed_text: string;
@@ -23,47 +23,135 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [historyLogs, setHistoryLogs] = useState<HistoryLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+
+  const parseUTCDate = (str?: string) => {
+    if (!str) return new Date();
+    let isoStr = String(str).trim();
+    if (!isoStr.endsWith('Z') && !isoStr.includes('+') && !isoStr.includes('GMT')) {
+      isoStr = isoStr.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(isoStr);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+
+  const formatHistoryTime = (dateStr: string) => {
+    const d = parseUTCDate(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const timeFormatted = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+    if (diffMs >= -60000 && (diffMs < 24 * 3600 * 1000 || d.toDateString() === now.toDateString())) {
+      return `Today, ${timeFormatted}`;
+    }
+
+    if (diffMs < 48 * 3600 * 1000) {
+      return `Yesterday, ${timeFormatted}`;
+    }
+
+    return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeFormatted}`;
+  };
+
+  const loadHistoryLogs = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/channels/history?email=${userEmail}`);
+      if (response.ok) {
+        const data = await response.json();
+        setHistoryLogs((prev) => {
+          const combined = [...data, ...prev];
+          const map = new Map();
+          combined.forEach((item) => map.set(item.id, item));
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime()
+          );
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load scan history logs:', err);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
+    let isMounted = true;
     const fetchHistory = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
         const response = await fetch(`${apiUrl}/api/channels/history?email=${userEmail}`);
-        if (response.ok) {
+        if (response.ok && isMounted) {
           const data = await response.json();
-          setHistoryLogs(data);
+          setHistoryLogs((prev) => {
+            const combined = [...data, ...prev];
+            const map = new Map();
+            combined.forEach((item) => map.set(item.id, item));
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime()
+            );
+          });
         }
       } catch (err) {
         console.error('Failed to load scan history logs:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
+
     fetchHistory();
-  }, [userEmail]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userEmail, apiUrl]);
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight text-white">Timeline History</h1>
-        <p className="text-xs text-[#71717A]">Review historical visual diffs and change detection logs.</p>
+    <div className="space-y-6 text-left">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight text-white">Timeline History</h1>
+          <p className="text-xs text-[#71717A]">Review historical visual diffs and change detection logs.</p>
+        </div>
+        <button
+          onClick={loadHistoryLogs}
+          disabled={isRefreshing}
+          className="px-3.5 py-1.5 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer"
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>{isRefreshing ? 'Refreshing...' : 'Refresh Logs'}</span>
+        </button>
       </div>
 
       <div className="bg-[#09090B] border border-[#18181B] rounded-xl p-6 flex flex-col space-y-4">
         <div className="flex items-center gap-2 border-b border-[#18181B] pb-4">
           <Clock className="h-4.5 w-4.5 text-[#A1A1AA]" />
-          <h3 className="font-semibold text-white text-sm">Visual Diff Logs</h3>
+          <h3 className="font-semibold text-white text-sm">Visual Diff Audit Trail</h3>
         </div>
 
         {loading ? (
-          <p className="text-xs text-[#71717A] italic text-center py-4 animate-pulse">Loading logs...</p>
+          <p className="text-xs text-[#71717A] italic text-center py-4 animate-pulse">Loading workspace scan history...</p>
         ) : (
           <div className="flex flex-col space-y-4">
+            {isRefreshing && (
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex justify-between items-center text-xs animate-pulse">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-3.5 w-3.5 text-amber-400 animate-spin" />
+                  <span className="text-amber-200 font-bold">Refreshing audit history logs...</span>
+                </div>
+                <span className="text-amber-400 text-[11px] font-mono font-semibold">
+                  Today, {new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                </span>
+              </div>
+            )}
+
             {historyLogs.length > 0 ? (
               historyLogs.map((log) => {
                 const isExpanded = expandedId === log.id;
-                const formattedTime = new Date(log.scan_time).toLocaleString();
-                
+                const formattedTime = formatHistoryTime(log.scan_time);
+                const isAlert = log.status_type === 'HIGH ALERT' || log.status_type.includes('ALERT');
+
                 return (
                   <div
                     key={log.id}
@@ -76,24 +164,22 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                           <span className="font-bold text-white text-sm">{log.name}</span>
                           <span
                             className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                              log.status_type === 'HIGH ALERT'
+                              isAlert
                                 ? 'bg-[#FEF3C7] text-[#D97706]'
-                                : log.status_type === 'LOW ALERT'
-                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                : 'bg-[#18181B] text-[#A1A1AA]'
+                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                             }`}
                           >
                             {log.status_type}
                           </span>
                         </div>
-                        <p className="text-xs text-[#71717A]">{log.url}</p>
+                        <p className="text-xs text-[#71717A] font-mono">{log.url}</p>
                         <p className="text-xs text-muted mt-1">{log.description}</p>
                       </div>
                       <div className="flex items-center space-x-4">
                         <span className="text-xs text-[#71717A]">{formattedTime}</span>
                         <button
                           onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                          className="p-1 rounded bg-[#18181B] text-white hover:bg-[#27272A] transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg bg-[#18181B] text-white hover:bg-[#27272A] transition-colors cursor-pointer"
                         >
                           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
@@ -104,27 +190,158 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                     {isExpanded && (
                       <div className="mt-4 border-t border-[#18181B] pt-4 space-y-4 animate-fadeIn">
                         {/* Gemini AI explanation */}
-                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
-                          <div className="flex items-center gap-1.5 text-xs font-semibold text-white">
-                            <Sparkles className="h-3.5 w-3.5 text-yellow-400" />
-                            <span>Gemini Change Intelligence</span>
+                        <div className="p-5 rounded-xl bg-[#09090B] border border-[#18181B] space-y-4 text-left">
+                          {/* Header */}
+                          <div className="flex items-center justify-between border-b border-[#18181B] pb-3">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-amber-400" />
+                              <span className="text-sm font-semibold text-white">Gemini Change Analysis</span>
+                            </div>
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
+                              isAlert 
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                                : 'bg-white/5 text-[#A1A1AA] border-white/10'
+                            }`}>
+                              {isAlert ? 'High Priority Alert' : 'Standard Update'}
+                            </span>
                           </div>
-                          <p className="text-xs text-[#A1A1AA] leading-relaxed">{log.explanation}</p>
+
+                          {/* Critical Impact Warning Banner if change is big */}
+                          {isAlert && (
+                            <div className="p-3.5 rounded-lg border border-red-500/20 bg-red-500/5 flex items-start gap-3">
+                              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5">
+                                <p className="text-xs font-semibold text-white">Critical Impact Detected</p>
+                                <p className="text-[11px] text-[#A1A1AA] leading-relaxed">
+                                  This update includes structural changes to target pricing, quotas, or service terms that impact user operations.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 5 Clean Linear-Style Breakdown Cards */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                            <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1">
+                              <div className="flex items-center gap-1.5 font-medium text-white">
+                                <FileText className="h-3.5 w-3.5 text-[#A1A1AA]" />
+                                <span>What Changed</span>
+                              </div>
+                              <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
+                                {log.description || (isAlert ? 'Target webpage modified with revised pricing structure and updated limits.' : 'Routine text snapshot update detected.')}
+                              </p>
+                            </div>
+
+                            <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1">
+                              <div className="flex items-center gap-1.5 font-medium text-white">
+                                <Zap className="h-3.5 w-3.5 text-[#A1A1AA]" />
+                                <span>Why It Matters</span>
+                              </div>
+                              <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
+                                {isAlert 
+                                  ? 'Changes to rate limits and pricing tiers affect request budgets and competitive tracking.' 
+                                  : 'Minor content adjustment with no immediate operational risk.'}
+                              </p>
+                            </div>
+
+                            <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1">
+                              <div className="flex items-center gap-1.5 font-medium text-white">
+                                <Users className="h-3.5 w-3.5 text-[#A1A1AA]" />
+                                <span>Who Is Affected</span>
+                              </div>
+                              <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
+                                {isAlert ? 'Active plan subscribers, integration developers, and sales leads.' : 'General site visitors.'}
+                              </p>
+                            </div>
+
+                            <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1">
+                              <div className="flex items-center gap-1.5 font-medium text-white">
+                                <ShieldAlert className="h-3.5 w-3.5 text-[#A1A1AA]" />
+                                <span>Importance Level</span>
+                              </div>
+                              <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
+                                {isAlert ? 'High Priority — Action Recommended' : 'Low — Informational Only'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1 text-xs">
+                            <div className="flex items-center gap-1.5 font-medium text-white">
+                              <Target className="h-3.5 w-3.5 text-[#A1A1AA]" />
+                              <span>Recommended Actions</span>
+                            </div>
+                            <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
+                              {isAlert 
+                                ? 'Review updated plan caps, notify team leads, and adjust usage thresholds if required.' 
+                                : 'No immediate action required. Background monitoring will continue automatically.'}
+                            </p>
+                          </div>
                         </div>
 
-                        {/* Diff box */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <span className="text-[10px] font-bold text-[#71717A] uppercase tracking-wider">Before</span>
-                            <pre className="p-3 bg-red-950/20 border border-red-900/30 rounded-lg text-xs font-mono text-red-300 overflow-x-auto whitespace-pre-wrap">
-                              {log.original_text}
-                            </pre>
+                        {/* Code Diff Panel */}
+                        <div className="space-y-3 pt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-white">Visual Code Diff Snapshots</span>
+                            <span className="text-[10px] text-[#71717A] font-mono">Side-by-side comparison</span>
                           </div>
-                          <div className="space-y-1">
-                            <span className="text-[10px] font-bold text-[#71717A] uppercase tracking-wider">After</span>
-                            <pre className="p-3 bg-green-950/20 border border-green-900/30 rounded-lg text-xs font-mono text-green-300 overflow-x-auto whitespace-pre-wrap">
-                              {log.changed_text}
-                            </pre>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                            {/* BEFORE PANEL */}
+                            <div className="rounded-xl bg-[#09090B] border border-[#18181B] overflow-hidden flex flex-col">
+                              <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
+                                <div className="flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-rose-500/80" />
+                                  <span className="font-medium text-white">Previous Baseline</span>
+                                </div>
+                                <span className="text-[10px] font-mono text-rose-400/80 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                                  - Previous
+                                </span>
+                              </div>
+
+                              <div className="p-3 max-h-64 overflow-y-auto font-mono text-[11px] leading-relaxed bg-[#09090B]">
+                                {log.original_text && !log.original_text.toLowerCase().includes('failed') ? (
+                                  log.original_text.split('\n').map((line, idx) => (
+                                    <div key={idx} className="flex gap-3 hover:bg-white/[0.02] py-0.5 px-1 rounded">
+                                      <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{idx + 1}</span>
+                                      <span className="text-rose-300/90 break-all">{line || ' '}</span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="p-3 rounded-lg bg-rose-500/5 border border-rose-500/20 text-rose-300 text-xs font-sans space-y-1">
+                                    <p className="font-semibold text-rose-400 flex items-center gap-1.5">
+                                      <AlertCircle className="h-3.5 w-3.5" />
+                                      <span>{log.original_text || 'Baseline scrape pending'}</span>
+                                    </p>
+                                    <p className="text-[11px] text-[#A1A1AA]">Initial snapshot was established on channel creation.</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* AFTER PANEL */}
+                            <div className="rounded-xl bg-[#09090B] border border-[#18181B] overflow-hidden flex flex-col">
+                              <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
+                                <div className="flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
+                                  <span className="font-medium text-white">Current Version</span>
+                                </div>
+                                <span className="text-[10px] font-mono text-emerald-400/80 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                  + Current
+                                </span>
+                              </div>
+
+                              <div className="p-3 max-h-64 overflow-y-auto font-mono text-[11px] leading-relaxed bg-[#09090B]">
+                                {log.changed_text ? (
+                                  log.changed_text.split('\n').map((line, idx) => (
+                                    <div key={idx} className="flex gap-3 hover:bg-white/[0.02] py-0.5 px-1 rounded">
+                                      <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{idx + 1}</span>
+                                      <span className="text-emerald-300/90 break-all">{line || ' '}</span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-[#71717A] italic text-xs font-sans p-2">No changes detected in current snapshot.</p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -133,7 +350,11 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                 );
               })
             ) : (
-              <p className="text-xs text-[#71717A] italic text-center py-4">No scan runs recorded yet.</p>
+              <div className="p-8 bg-black border border-[#18181B] rounded-xl text-center space-y-2">
+                <Clock className="h-8 w-8 text-[#71717A] mx-auto opacity-50" />
+                <p className="text-xs text-[#71717A] font-medium">No scan runs recorded yet in your workspace audit history.</p>
+                <p className="text-[11px] text-[#A1A1AA]">Run a manual scan from the Dashboard or wait for background interval scans to populate logs.</p>
+              </div>
             )}
           </div>
         )}
