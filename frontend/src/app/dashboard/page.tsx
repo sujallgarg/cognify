@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, ChevronRight, Menu, X, Eye, LayoutDashboard, History, Settings, CreditCard, LogOut, Sparkles } from 'lucide-react';
+import { Bell, ChevronRight, Menu, X, Eye, LayoutDashboard, History, Settings, CreditCard, LogOut, Sparkles, Volume2, VolumeX } from 'lucide-react';
 
 import Sidebar from '@/components/Sidebar';
 import StatsCards from '@/components/StatsCards';
@@ -271,7 +271,33 @@ export default function DashboardPage() {
     localStorage.setItem(`cognify_ops_${user.email}`, JSON.stringify(updatedOps));
   };
 
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Load sound setting preference from localStorage on mount
+  useEffect(() => {
+    if (user?.email) {
+      try {
+        const savedSound = localStorage.getItem(`cognify_sound_enabled_${user.email}`);
+        if (savedSound !== null) {
+          setSoundEnabled(savedSound === 'true');
+        }
+      } catch (e) {}
+    }
+  }, [user?.email]);
+
+  const toggleSound = () => {
+    const nextVal = !soundEnabled;
+    setSoundEnabled(nextVal);
+    if (user?.email) {
+      try {
+        localStorage.setItem(`cognify_sound_enabled_${user.email}`, nextVal.toString());
+      } catch (e) {}
+    }
+  };
+
   const playNotificationSound = () => {
+    if (!soundEnabled) return; // Muted by user toggle
+
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
@@ -639,7 +665,20 @@ export default function DashboardPage() {
             </div>
           </div>
           
-          <div className="flex items-center space-x-4 relative">
+          <div className="flex items-center space-x-3 relative">
+            {/* Mute / Unmute Sound Toggle Button */}
+            <button
+              onClick={toggleSound}
+              title={soundEnabled ? 'Disable popup notification sound' : 'Enable popup notification sound'}
+              className="p-1.5 rounded-lg text-[#A1A1AA] hover:text-white hover:bg-white/[0.02] transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              {soundEnabled ? (
+                <Volume2 className="h-4.5 w-4.5 text-emerald-400" />
+              ) : (
+                <VolumeX className="h-4.5 w-4.5 text-[#71717A]" />
+              )}
+            </button>
+
             <button 
               onClick={() => {
                 setShowNotificationsMenu(!showNotificationsMenu);
@@ -935,12 +974,21 @@ export default function DashboardPage() {
             </div>
             <p className="text-[11px] text-[#A1A1AA] leading-relaxed break-words">{activeToast.desc}</p>
           </div>
-          <button
-            onClick={() => setActiveToast(null)}
-            className="p-1 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer shrink-0"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={toggleSound}
+              title={soundEnabled ? 'Mute popup sound' : 'Unmute popup sound'}
+              className="p-1 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-emerald-400" /> : <VolumeX className="h-3.5 w-3.5 text-[#71717A]" />}
+            </button>
+            <button
+              onClick={() => setActiveToast(null)}
+              className="p-1 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
     </div>

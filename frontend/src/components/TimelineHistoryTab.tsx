@@ -300,92 +300,24 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                     {/* Expanded Diff details */}
                     {isExpanded && (
                       <div className="mt-4 border-t border-[#18181B] pt-4 space-y-4 animate-fadeIn">
-                        {/* Gemini AI explanation */}
-                        <div className="p-5 rounded-xl bg-[#09090B] border border-[#18181B] space-y-4 text-left">
-                          {/* Header */}
-                          <div className="flex items-center justify-between border-b border-[#18181B] pb-3">
+                        {/* Summary of What Changed */}
+                        <div className="p-4 rounded-xl bg-[#09090B] border border-[#18181B] space-y-2 text-left">
+                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <Sparkles className="h-4 w-4 text-amber-400" />
-                              <span className="text-sm font-semibold text-white">Gemini Change Analysis</span>
+                              <FileText className="h-4 w-4 text-amber-400" />
+                              <span className="text-sm font-semibold text-white">What Changed</span>
                             </div>
                             <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
                               isAlert 
                                 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
                                 : 'bg-white/5 text-[#A1A1AA] border-white/10'
                             }`}>
-                              {isAlert ? 'High Priority Alert' : 'Standard Update'}
+                              {isAlert ? 'Change Alert' : 'No Changes'}
                             </span>
                           </div>
-
-                          {/* Critical Impact Warning Banner if change is big */}
-                          {isAlert && (
-                            <div className="p-3.5 rounded-lg border border-red-500/20 bg-red-500/5 flex items-start gap-3">
-                              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                              <div className="space-y-0.5">
-                                <p className="text-xs font-semibold text-white">Critical Impact Detected</p>
-                                <p className="text-[11px] text-[#A1A1AA] leading-relaxed">
-                                  This update includes structural changes to target pricing, quotas, or service terms that impact user operations.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* 5 Clean Linear-Style Breakdown Cards */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                            <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1">
-                              <div className="flex items-center gap-1.5 font-medium text-white">
-                                <FileText className="h-3.5 w-3.5 text-[#A1A1AA]" />
-                                <span>What Changed</span>
-                              </div>
-                              <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
-                                {log.description || (isAlert ? 'Target webpage modified with revised pricing structure and updated limits.' : 'Routine text snapshot update detected.')}
-                              </p>
-                            </div>
-
-                            <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1">
-                              <div className="flex items-center gap-1.5 font-medium text-white">
-                                <Zap className="h-3.5 w-3.5 text-[#A1A1AA]" />
-                                <span>Why It Matters</span>
-                              </div>
-                              <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
-                                {isAlert 
-                                  ? 'Changes to rate limits and pricing tiers affect request budgets and competitive tracking.' 
-                                  : 'Minor content adjustment with no immediate operational risk.'}
-                              </p>
-                            </div>
-
-                            <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1">
-                              <div className="flex items-center gap-1.5 font-medium text-white">
-                                <Users className="h-3.5 w-3.5 text-[#A1A1AA]" />
-                                <span>Who Is Affected</span>
-                              </div>
-                              <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
-                                {isAlert ? 'Active plan subscribers, integration developers, and sales leads.' : 'General site visitors.'}
-                              </p>
-                            </div>
-
-                            <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1">
-                              <div className="flex items-center gap-1.5 font-medium text-white">
-                                <ShieldAlert className="h-3.5 w-3.5 text-[#A1A1AA]" />
-                                <span>Importance Level</span>
-                              </div>
-                              <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
-                                {isAlert ? 'High Priority — Action Recommended' : 'Low — Informational Only'}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="p-3 rounded-lg bg-black border border-[#18181B] space-y-1 text-xs">
-                            <div className="flex items-center gap-1.5 font-medium text-white">
-                              <Target className="h-3.5 w-3.5 text-[#A1A1AA]" />
-                              <span>Recommended Actions</span>
-                            </div>
-                            <p className="text-[#A1A1AA] text-[11px] leading-relaxed">
-                              {isAlert 
-                                ? 'Review updated plan caps, notify team leads, and adjust usage thresholds if required.' 
-                                : 'No immediate action required. Background monitoring will continue automatically.'}
-                            </p>
-                          </div>
+                          <p className="text-xs text-[#A1A1AA] leading-relaxed pl-6">
+                            {log.description || 'No content changes detected. Baseline snapshot matches webpage text.'}
+                          </p>
                         </div>
 
                         {/* Code Diff Panel */}
@@ -401,7 +333,7 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                               <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
                                 <div className="flex items-center gap-2">
                                   <span className="h-2 w-2 rounded-full bg-rose-500/80" />
-                                  <span className="font-medium text-white">Previous Baseline</span>
+                                  <span className="font-medium text-white">Before (Previous Baseline)</span>
                                 </div>
                                 <span className="text-[10px] font-mono text-rose-400/80 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
                                   - Previous
@@ -409,7 +341,7 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                               </div>
 
                               <div className="p-3 max-h-64 overflow-y-auto font-mono text-[11px] leading-relaxed bg-[#09090B]">
-                                {log.original_text && !log.original_text.toLowerCase().includes('failed') ? (
+                                {log.original_text ? (
                                   log.original_text.split('\n').map((line, idx) => (
                                     <div key={idx} className="flex gap-3 hover:bg-white/[0.02] py-0.5 px-1 rounded">
                                       <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{idx + 1}</span>
@@ -417,13 +349,7 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                                     </div>
                                   ))
                                 ) : (
-                                  <div className="p-3 rounded-lg bg-rose-500/5 border border-rose-500/20 text-rose-300 text-xs font-sans space-y-1">
-                                    <p className="font-semibold text-rose-400 flex items-center gap-1.5">
-                                      <AlertCircle className="h-3.5 w-3.5" />
-                                      <span>{log.original_text || 'Baseline scrape pending'}</span>
-                                    </p>
-                                    <p className="text-[11px] text-[#A1A1AA]">Initial snapshot was established on channel creation.</p>
-                                  </div>
+                                  <p className="text-[#71717A] italic text-xs font-sans p-2">Baseline snapshot initializing...</p>
                                 )}
                               </div>
                             </div>
@@ -433,7 +359,7 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                               <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
                                 <div className="flex items-center gap-2">
                                   <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
-                                  <span className="font-medium text-white">Current Version</span>
+                                  <span className="font-medium text-white">After (Current Version)</span>
                                 </div>
                                 <span className="text-[10px] font-mono text-emerald-400/80 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
                                   + Current
@@ -449,7 +375,7 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                                     </div>
                                   ))
                                 ) : (
-                                  <p className="text-[#71717A] italic text-xs font-sans p-2">No changes detected in current snapshot.</p>
+                                  <p className="text-[#71717A] italic text-xs font-sans p-2">Current snapshot matching baseline...</p>
                                 )}
                               </div>
                             </div>
