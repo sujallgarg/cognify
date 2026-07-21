@@ -357,6 +357,35 @@ export default function DashboardPage() {
     return true; // ALLOWED
   };
 
+  const appendHistoryLog = (userEmail: string, name: string, url: string, interval = 'DAILY') => {
+    if (!userEmail) return;
+    const nowIso = new Date().toISOString();
+    const newLog = {
+      id: Date.now(),
+      name,
+      url,
+      scan_time: nowIso,
+      status_type: 'NORMAL',
+      description: `Initial scan completed. Baseline snapshot established for ${name}.`,
+      original_text: `# ${name}\n• Target URL: ${url}\n• Scan Interval: ${interval}\n• Status: Active Monitoring.`,
+      changed_text: `# ${name}\n• Target URL: ${url}\n• Scan Interval: ${interval}\n• Status: Active Monitoring.`,
+      explanation: `Initial baseline content snapshot established for ${name}. Automated visual diff scanner active.`
+    };
+
+    try {
+      const historyKey = `cognify_history_${userEmail}`;
+      const savedHistory = localStorage.getItem(historyKey);
+      let existingLogs: any[] = [];
+      if (savedHistory) {
+        existingLogs = JSON.parse(savedHistory);
+      }
+      const updatedLogs = [newLog, ...existingLogs];
+      localStorage.setItem(historyKey, JSON.stringify(updatedLogs));
+    } catch (e) {
+      console.error('Failed to append history log:', e);
+    }
+  };
+
   const handleAddChannel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetUrl || !user) return;
@@ -416,6 +445,7 @@ export default function DashboardPage() {
         // Log operation & trigger notification popup
         addOperation('Created new website monitor', newChan.name);
         addNotification('Website Monitor Added', `Started monitoring: ${newChan.name}`);
+        appendHistoryLog(user.email, newChan.name, newChan.url, intervalCode);
 
         // Update scan & summary usage counts
         const newScans = scansCount + 1;
@@ -438,6 +468,7 @@ export default function DashboardPage() {
         setChannelName('');
         addOperation('Created new website monitor', computedName);
         addNotification('Website Monitor Added', `Started monitoring: ${computedName}`);
+        appendHistoryLog(user.email, computedName, formattedUrl, intervalCode);
       }
     } catch (err) {
       console.warn('Backend unavailable, created local channel entry:', err);
@@ -453,6 +484,7 @@ export default function DashboardPage() {
       setChannelName('');
       addOperation('Created new website monitor', computedName);
       addNotification('Website Monitor Added', `Started monitoring: ${computedName}`);
+      appendHistoryLog(user.email, computedName, formattedUrl, intervalCode);
     }
   };
 

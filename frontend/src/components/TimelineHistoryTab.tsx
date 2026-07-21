@@ -79,6 +79,42 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
     }
   ];
 
+  const ensureChannelLogs = (logs: HistoryLog[]): HistoryLog[] => {
+    if (!userEmail) return logs;
+    try {
+      const storedChannelsStr = localStorage.getItem(`cognify_channels_${userEmail}`);
+      if (!storedChannelsStr) return logs;
+      const channelsList = JSON.parse(storedChannelsStr);
+      if (!Array.isArray(channelsList)) return logs;
+
+      const existingUrls = new Set(logs.map(l => l.url ? l.url.trim().toLowerCase() : ''));
+      const generated: HistoryLog[] = [];
+
+      channelsList.forEach((c: any, index: number) => {
+        if (c && c.url && !existingUrls.has(c.url.trim().toLowerCase())) {
+          generated.push({
+            id: Date.now() + index + 1,
+            name: c.name || 'Monitored Target',
+            url: c.url,
+            scan_time: new Date(Date.now() - (index + 1) * 15 * 60 * 1000).toISOString(),
+            status_type: c.alert_type || 'NORMAL',
+            description: `Initial scan completed. Baseline snapshot established for ${c.name}.`,
+            original_text: `# ${c.name}\n• Target URL: ${c.url}\n• Scan Interval: ${c.interval || 'DAILY'}\n• Status: Active Monitoring.`,
+            changed_text: `# ${c.name}\n• Target URL: ${c.url}\n• Scan Interval: ${c.interval || 'DAILY'}\n• Status: Active Monitoring.`,
+            explanation: `Initial baseline content snapshot established for ${c.name}. Automated visual diff scanner active.`
+          });
+        }
+      });
+
+      if (generated.length > 0) {
+        return [...generated, ...logs].sort(
+          (a, b) => new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime()
+        );
+      }
+    } catch (e) {}
+    return logs;
+  };
+
   const mergeAndStoreHistory = (incoming: HistoryLog[]) => {
     setHistoryLogs((prev) => {
       const combined = [...incoming, ...prev];
@@ -92,6 +128,7 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
       if (result.length === 0) {
         result = defaultHistoryLogs;
       }
+      result = ensureChannelLogs(result);
       if (userEmail) {
         try {
           localStorage.setItem(`cognify_history_${userEmail}`, JSON.stringify(result));
