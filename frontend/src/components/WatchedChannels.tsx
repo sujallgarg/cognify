@@ -73,15 +73,15 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
             return (
               <div
                 key={channel.id}
-                className="p-4 rounded-xl bg-black border border-[#18181B] flex items-center justify-between text-sm hover:border-[#27272A] transition-all"
+                className="p-4 rounded-xl bg-black border border-[#18181B] flex items-center justify-between gap-4 text-sm hover:border-[#27272A] transition-all overflow-hidden"
               >
-                <div className="flex flex-col space-y-1 text-left">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white">{channel.name}</span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#18181B] text-[#A1A1AA]">
+                <div className="flex flex-col space-y-1 text-left min-w-0 flex-1 overflow-hidden">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-white truncate max-w-[180px] sm:max-w-[240px]">{channel.name}</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#18181B] text-[#A1A1AA] shrink-0">
                       {channel.interval}
                     </span>
-                    <span className="text-[9px] text-[#71717A] bg-[#18181B]/60 px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <span className="text-[9px] text-[#71717A] bg-[#18181B]/60 px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
                       {isScanningThis ? (
                         <>
                           <RotateCw className="h-2.5 w-2.5 animate-spin text-white" />
@@ -96,25 +96,26 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
                     href={channel.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-[#71717A] hover:text-white flex items-center gap-1"
+                    className="text-xs text-[#71717A] hover:text-white flex items-center gap-1 min-w-0 max-w-full"
+                    title={channel.url}
                   >
-                    {channel.url}
-                    <ExternalLink className="h-3 w-3" />
+                    <span className="truncate flex-1 max-w-[220px] sm:max-w-[340px] md:max-w-[420px]">{channel.url}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0" />
                   </a>
 
                   {channel.alert_type && (
-                    <div className="mt-2 flex items-start gap-2">
+                    <div className="mt-2 flex items-start gap-2 max-w-full">
                       <span className="text-[9px] font-bold bg-[#FEF3C7] text-[#D97706] px-1.5 py-0.5 rounded shrink-0">
                         {channel.alert_type}
                       </span>
-                      <span className="text-xs text-[#E4E4E7] font-medium leading-relaxed">
+                      <span className="text-xs text-[#E4E4E7] font-medium leading-relaxed truncate max-w-[220px] sm:max-w-[340px] md:max-w-[420px]">
                         {channel.alert_desc}
                       </span>
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 shrink-0">
                   {onSummarizeChannel && (
                     <button
                       onClick={() => onSummarizeChannel(channel)}

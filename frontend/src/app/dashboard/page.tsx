@@ -51,8 +51,8 @@ export default function DashboardPage() {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
   // Stats state
-  const [scansCount, setScansCount] = useState(22);
-  const [summariesCount, setSummariesCount] = useState(4);
+  const [scansCount, setScansCount] = useState(0);
+  const [summariesCount, setSummariesCount] = useState(0);
 
   // Operations log state
   interface OperationLog {
@@ -85,11 +85,6 @@ export default function DashboardPage() {
     if (!email) return;
     const cleanEmail = email.trim();
 
-    const defaultChannels: Channel[] = [
-      { id: 1, name: 'OpenAI Pricing', url: 'https://openai.com/pricing', interval: 'DAILY', alert_type: 'PRICE_CHANGE' },
-      { id: 2, name: 'Anthropic News', url: 'https://anthropic.com/news', interval: 'DAILY', alert_type: 'NEWS_UPDATE' }
-    ];
-
     // Read current local storage channels
     let localItems: Channel[] = [];
     try {
@@ -103,7 +98,7 @@ export default function DashboardPage() {
     const mergeAndStore = (incoming: Channel[]) => {
       setChannels((prev) => {
         const map = new Map<string, Channel>();
-        // Add server/default incoming items
+        // Add server incoming items
         incoming.forEach((item) => {
           if (item && item.url) map.set(item.url.trim().toLowerCase(), item);
         });
@@ -117,9 +112,6 @@ export default function DashboardPage() {
         });
 
         const merged = Array.from(map.values());
-        if (merged.length === 0) {
-          merged.push(...defaultChannels);
-        }
         localStorage.setItem(`cognify_channels_${cleanEmail}`, JSON.stringify(merged));
         return merged;
       });
@@ -140,28 +132,17 @@ export default function DashboardPage() {
         }
       }
 
-      // If backend returned empty or non-200, seed default channels to backend
-      const created: Channel[] = [];
-      for (const item of defaultChannels) {
-        try {
-          const res = await fetch(`${apiUrl}/api/channels`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanEmail, name: item.name, url: item.url, interval: item.interval })
-          });
-          if (res.ok) {
-            const channelData = await res.json();
-            created.push(channelData);
-          }
-        } catch (postErr) {
-          // ignore post error
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          mergeAndStore(data);
+          return;
         }
       }
-
-      mergeAndStore(created.length > 0 ? created : defaultChannels);
+      mergeAndStore([]);
     } catch (err) {
-      console.warn('Backend API unavailable, using cached/fallback channels:', err);
-      mergeAndStore(defaultChannels);
+      console.warn('Backend API unavailable, using cached channels:', err);
+      mergeAndStore([]);
     }
   };
 
@@ -192,38 +173,34 @@ export default function DashboardPage() {
 
       fetchChannels(u.email);
 
-      // Load user stats
+      // Load user stats (Force 0 for new & existing user data reset)
       const userScansKey = `cognify_scans_${u.email}`;
       const userSummariesKey = `cognify_summaries_${u.email}`;
       
       const savedScans = localStorage.getItem(userScansKey);
-      if (savedScans) {
+      if (savedScans && parseInt(savedScans, 10) !== 22) {
         setScansCount(parseInt(savedScans, 10));
       } else {
-        localStorage.setItem(userScansKey, '22');
-        setScansCount(22);
+        localStorage.setItem(userScansKey, '0');
+        setScansCount(0);
       }
 
       const savedSummaries = localStorage.getItem(userSummariesKey);
-      if (savedSummaries) {
+      if (savedSummaries && parseInt(savedSummaries, 10) !== 4) {
         setSummariesCount(parseInt(savedSummaries, 10));
       } else {
-        localStorage.setItem(userSummariesKey, '4');
-        setSummariesCount(4);
+        localStorage.setItem(userSummariesKey, '0');
+        setSummariesCount(0);
       }
 
       // Load user operations
       const userOpsKey = `cognify_ops_${u.email}`;
       const savedOps = localStorage.getItem(userOpsKey);
-      if (savedOps) {
+      if (savedOps && JSON.parse(savedOps).length > 0 && !JSON.stringify(savedOps).includes('Competitor pricing')) {
         setOperations(JSON.parse(savedOps));
       } else {
-        const initialOps = [
-          { title: 'Competitor pricing scan completed', time: '12 minutes ago • OpenAI Pricing' },
-          { title: 'Gemini AI diff analysis generated', time: '1 hour ago • Anthropic News' }
-        ];
-        setOperations(initialOps);
-        localStorage.setItem(userOpsKey, JSON.stringify(initialOps));
+        setOperations([]);
+        localStorage.setItem(userOpsKey, JSON.stringify([]));
       }
 
       // Sync active subscription plan
@@ -233,14 +210,11 @@ export default function DashboardPage() {
       // Load user notifications
       const userNotifsKey = `cognify_notifs_${u.email}`;
       const savedNotifs = localStorage.getItem(userNotifsKey);
-      if (savedNotifs) {
+      if (savedNotifs && JSON.parse(savedNotifs).length > 0 && !JSON.stringify(savedNotifs).includes('Intelligence Center Initialized')) {
         setNotifications(JSON.parse(savedNotifs));
       } else {
-        const defaultNotifs = [
-          { id: '1', title: 'Intelligence Center Initialized', desc: 'Workspace scanning environment and database connection configured.', time: 'Just now', unread: true },
-        ];
-        setNotifications(defaultNotifs);
-        localStorage.setItem(userNotifsKey, JSON.stringify(defaultNotifs));
+        setNotifications([]);
+        localStorage.setItem(userNotifsKey, JSON.stringify([]));
       }
     } catch (e) {
       localStorage.removeItem('cognify_user');

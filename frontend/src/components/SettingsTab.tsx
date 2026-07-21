@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Bell, Key, ShieldAlert, User, Mail } from 'lucide-react';
+import { Bell, Key, ShieldAlert, User, Mail, RotateCw } from 'lucide-react';
 
 interface SettingsTabProps {
   userEmail: string;
@@ -437,6 +437,28 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
             <p className="text-[11px] text-[#71717A] leading-relaxed">
               All credentials and keys are fully encrypted at rest using AES-256 before storage. Webhook calls execute securely via HTTPS.
             </p>
+          </div>
+
+          <div className="bg-[#09090B] border border-red-500/20 rounded-xl p-6 space-y-4 text-left">
+            <div className="flex items-center gap-2 border-b border-[#18181B] pb-3">
+              <RotateCw className="h-4.5 w-4.5 text-red-400" />
+              <h3 className="font-semibold text-white text-sm">Reset Site Data & Fresh Start</h3>
+            </div>
+            <p className="text-[11px] text-[#71717A] leading-relaxed">
+              Clear all local storage, cached user sessions, settings, and start fresh with a clean slate for a new user account.
+            </p>
+            <button
+              onClick={() => {
+                if (confirm('Are you sure you want to clear all site data and start fresh as a new user?')) {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  window.location.href = '/register';
+                }
+              }}
+              className="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
+            >
+              Clear Site Data & Start Fresh
+            </button>
           </div>
         </div>
       </div>

@@ -268,12 +268,12 @@ export default function ChannelDetailsModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
       <div className="bg-[#09090B] border border-[#18181B] rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 border-b border-[#18181B] flex justify-between items-start">
-          <div className="space-y-1 text-left">
-            <div className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-[#A1A1AA]" />
-              <h2 className="text-lg font-bold text-white">{currentChannel.name}</h2>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#18181B] text-[#A1A1AA]">
+        <div className="p-6 border-b border-[#18181B] flex justify-between items-start gap-4 overflow-hidden">
+          <div className="space-y-1 text-left min-w-0 flex-1 overflow-hidden">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Globe className="h-5 w-5 text-[#A1A1AA] shrink-0" />
+              <h2 className="text-lg font-bold text-white truncate max-w-[280px] sm:max-w-[400px]">{currentChannel.name}</h2>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#18181B] text-[#A1A1AA] shrink-0">
                 {currentChannel.interval}
               </span>
             </div>
@@ -281,15 +281,16 @@ export default function ChannelDetailsModal({
               href={currentChannel.url}
               target="_blank"
               rel="noreferrer"
-              className="text-xs text-[#71717A] hover:text-white flex items-center gap-1"
+              className="text-xs text-[#71717A] hover:text-white flex items-center gap-1 min-w-0 max-w-full"
+              title={currentChannel.url}
             >
-              {currentChannel.url}
-              <ExternalLink className="h-3 w-3" />
+              <span className="truncate flex-1 max-w-[320px] sm:max-w-[500px] break-all">{currentChannel.url}</span>
+              <ExternalLink className="h-3 w-3 shrink-0" />
             </a>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
