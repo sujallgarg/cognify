@@ -110,13 +110,40 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
     }, 1200);
   };
 
+  const detectAndSetProvider = (key: string): 'gemini' | 'openai' | 'anthropic' | null => {
+    const trimmed = key.trim();
+    if (trimmed.startsWith('sk-ant-')) {
+      setAiProvider('anthropic');
+      return 'anthropic';
+    }
+    if (trimmed.startsWith('sk-') || trimmed.startsWith('sk-proj-') || trimmed.startsWith('sk-admin-')) {
+      setAiProvider('openai');
+      return 'openai';
+    }
+    if (trimmed.startsWith('AIzaSy')) {
+      setAiProvider('gemini');
+      return 'gemini';
+    }
+    return null;
+  };
+
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setGeminiApiKey(val);
+    const detected = detectAndSetProvider(val);
+    if (detected) {
+      saveSettings({ geminiApiKey: val, aiProvider: detected });
+    }
+  };
+
   const handleSaveApiKey = () => {
     setSavingKey(true);
     setTimeout(() => {
       setSavingKey(false);
-      saveSettings({ geminiApiKey, aiProvider });
-      const providerName = aiProvider === 'openai' ? 'OpenAI' : aiProvider === 'anthropic' ? 'Anthropic Claude' : 'Google Gemini';
-      alert(`${providerName} AI configuration & API key updated successfully.`);
+      const detected = detectAndSetProvider(geminiApiKey) || aiProvider;
+      saveSettings({ geminiApiKey, aiProvider: detected });
+      const providerName = detected === 'openai' ? 'OpenAI' : detected === 'anthropic' ? 'Anthropic Claude' : 'Google Gemini';
+      alert(`Auto-detected ${providerName}! API key updated successfully.`);
     }, 800);
   };
 
@@ -378,7 +405,7 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
                 <input
                   type="password"
                   value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  onChange={handleApiKeyChange}
                   placeholder={
                     geminiApiKey
                       ? '••••••••••••••••'
