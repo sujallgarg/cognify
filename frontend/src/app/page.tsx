@@ -66,6 +66,7 @@ export default function LandingPage() {
       price: "$0",
       description: "Basic change monitoring for personal projects.",
       features: [
+        "25 Scans per month",
         "Monitor up to 5 websites",
         "Daily scan intervals",
         "7-day history storage",

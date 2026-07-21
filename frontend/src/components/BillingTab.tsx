@@ -64,7 +64,7 @@ export default function BillingTab({ userEmail, scansCount, summariesCount, onAd
       period: '/mo',
       description: 'Basic change monitoring for individual sites.',
       features: [
-        '100 Scans per month',
+        '25 Scans per month',
         '15 AI Summaries',
         'Daily scan intervals',
         '7-day audit history',
@@ -161,12 +161,12 @@ export default function BillingTab({ userEmail, scansCount, summariesCount, onAd
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-[#71717A]">
                   <span>Scans Usage</span>
-                  <span>{scansCount} / {plan === 'TEAM' ? '50,000' : plan === 'PROFESSIONAL' ? '10,000' : '100'}</span>
+                  <span>{scansCount} / {plan === 'TEAM' ? '50,000' : plan === 'PROFESSIONAL' ? '10,000' : '25'}</span>
                 </div>
                 <div className="w-full h-1.5 bg-[#18181B] rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-white rounded-full transition-all duration-500" 
-                    style={{ width: `${Math.min(100, (scansCount / (plan === 'TEAM' ? 50000 : plan === 'PROFESSIONAL' ? 10000 : 100)) * 100)}%` }} 
+                    style={{ width: `${Math.min(100, (scansCount / (plan === 'TEAM' ? 50000 : plan === 'PROFESSIONAL' ? 10000 : 25)) * 100)}%` }} 
                   />
                 </div>
               </div>

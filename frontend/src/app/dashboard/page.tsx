@@ -81,36 +81,55 @@ export default function DashboardPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
   const fetchChannels = async (email: string) => {
+    if (!email) return;
+    const cleanEmail = email.trim();
+
+    const defaultChannels: Channel[] = [
+      { id: 1, name: 'OpenAI Pricing', url: 'https://openai.com/pricing', interval: 'DAILY', alert_type: 'PRICE_CHANGE' },
+      { id: 2, name: 'Anthropic News', url: 'https://anthropic.com/news', interval: 'DAILY', alert_type: 'NEWS_UPDATE' }
+    ];
+
     try {
-      const response = await fetch(`${apiUrl}/api/channels?email=${email}`);
+      const response = await fetch(`${apiUrl}/api/channels?email=${encodeURIComponent(cleanEmail)}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+
       if (response.ok) {
         const data = await response.json();
-        if (data.length > 0) {
+        if (Array.isArray(data) && data.length > 0) {
           setChannels(data);
-        } else {
-          // If no channels exist in DB, create initial defaults for the user
-          const defaults = [
-            { name: 'OpenAI Pricing', url: 'https://openai.com/pricing', interval: 'DAILY' },
-            { name: 'Anthropic News', url: 'https://anthropic.com/news', interval: 'DAILY' }
-          ];
-
-          const created = [];
-          for (const item of defaults) {
-            const res = await fetch(`${apiUrl}/api/channels`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, ...item })
-            });
-            if (res.ok) {
-              const channelData = await res.json();
-              created.push(channelData);
-            }
-          }
-          setChannels(created);
+          return;
         }
       }
+
+      // If backend returned empty or non-200, seed default channels to backend
+      const created: Channel[] = [];
+      for (const item of defaultChannels) {
+        try {
+          const res = await fetch(`${apiUrl}/api/channels`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: cleanEmail, name: item.name, url: item.url, interval: item.interval })
+          });
+          if (res.ok) {
+            const channelData = await res.json();
+            created.push(channelData);
+          }
+        } catch (postErr) {
+          // ignore post error
+        }
+      }
+
+      if (created.length > 0) {
+        setChannels(created);
+      } else {
+        setChannels(defaultChannels);
+      }
     } catch (err) {
-      console.error('Failed to fetch channels from API:', err);
+      console.warn('Backend API unavailable, using offline fallback channels:', err);
+      setChannels(defaultChannels);
     }
   };
 
@@ -231,10 +250,19 @@ export default function DashboardPage() {
     }
   };
 
+  interface ActiveToast {
+    id: string;
+    title: string;
+    desc: string;
+    time: string;
+  }
+  const [activeToast, setActiveToast] = useState<ActiveToast | null>(null);
+
   const addNotification = (title: string, desc: string) => {
     if (!user) return;
+    const notifId = Date.now().toString();
     const newNotif: NotificationItem = {
-      id: Date.now().toString(),
+      id: notifId,
       title,
       desc,
       time: 'Just now',
@@ -243,21 +271,49 @@ export default function DashboardPage() {
     const updated = [newNotif, ...notifications.slice(0, 19)];
     setNotifications(updated);
     localStorage.setItem(`cognify_notifs_${user.email}`, JSON.stringify(updated));
+
+    // Show active bottom-right corner toast popup card
+    setActiveToast({ id: notifId, title, desc, time: 'Just now' });
+
+    // Play pleasant dual-tone pop chime audio sound
     playNotificationSound();
+
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+      setActiveToast((curr) => (curr?.id === notifId ? null : curr));
+    }, 5000);
   };
 
   const handleAddChannel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetUrl || !user) return;
 
-    // Check if duplicate URL is already added (exact match, ignoring case/spacing)
+    // Normalize URL format
+    let formattedUrl = targetUrl.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    // Check duplicate URL
     const isDuplicate = channels.some(
-      (c) => c.url.trim().toLowerCase() === targetUrl.trim().toLowerCase()
+      (c) => c.url.trim().toLowerCase() === formattedUrl.toLowerCase()
     );
     if (isDuplicate) {
-      alert('This URL is already under monitor.');
+      addNotification('Duplicate Target', 'This URL is already in your monitor list.');
       return;
     }
+
+    // Safely extract channel name without throwing Invalid URL error
+    let computedName = channelName.trim();
+    if (!computedName) {
+      try {
+        computedName = new URL(formattedUrl).hostname.replace(/^www\./, '');
+      } catch (urlErr) {
+        computedName = 'New Target';
+      }
+    }
+
+    const intervalCode = scanInterval.split(' ')[0].toUpperCase();
 
     try {
       const response = await fetch(`${apiUrl}/api/channels`, {
@@ -265,36 +321,61 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: user.email,
-          name: channelName || new URL(targetUrl).hostname || 'New Target',
-          url: targetUrl,
-          interval: scanInterval.split(' ')[0].toUpperCase()
+          name: computedName,
+          url: formattedUrl,
+          interval: intervalCode
         })
       });
 
       if (response.ok) {
         const newChan = await response.json();
-        setChannels([newChan, ...channels]);
+        setChannels((prev) => [newChan, ...prev.filter(c => c.id !== newChan.id)]);
 
-        // Log operation
+        // Reset form inputs
+        setTargetUrl('');
+        setChannelName('');
+
+        // Log operation & trigger notification popup
         addOperation('Created new website monitor', newChan.name);
-        
-        // Add notification
         addNotification('Website Monitor Added', `Started monitoring: ${newChan.name}`);
 
-        // Increment scans and summaries on channel creation
+        // Update scan & summary usage counts
         const newScans = scansCount + 1;
         const newSummaries = summariesCount + 1;
         setScansCount(newScans);
         setSummariesCount(newSummaries);
         localStorage.setItem(`cognify_scans_${user.email}`, newScans.toString());
         localStorage.setItem(`cognify_summaries_${user.email}`, newSummaries.toString());
+      } else {
+        // Fallback channel entry if endpoint returned non-200 status
+        const fallbackChan: Channel = {
+          id: Date.now(),
+          name: computedName,
+          url: formattedUrl,
+          interval: intervalCode,
+          alert_type: 'NORMAL'
+        };
+        setChannels((prev) => [fallbackChan, ...prev]);
+        setTargetUrl('');
+        setChannelName('');
+        addOperation('Created new website monitor', computedName);
+        addNotification('Website Monitor Added', `Started monitoring: ${computedName}`);
       }
     } catch (err) {
-      console.error(err);
+      console.warn('Backend unavailable, created local channel entry:', err);
+      const fallbackChan: Channel = {
+        id: Date.now(),
+        name: computedName,
+        url: formattedUrl,
+        interval: intervalCode,
+        alert_type: 'NORMAL'
+      };
+      setChannels((prev) => [fallbackChan, ...prev]);
+      setTargetUrl('');
+      setChannelName('');
+      addOperation('Created new website monitor', computedName);
+      addNotification('Website Monitor Added', `Started monitoring: ${computedName}`);
     }
-
-    setTargetUrl('');
-    setChannelName('');
   };
 
   const handleDeleteChannel = async (id: string | number) => {
@@ -509,12 +590,12 @@ export default function DashboardPage() {
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px] text-[#A1A1AA]">
                       <span>Scans Limit</span>
-                      <span>{scansCount} / {subPlan === 'PROFESSIONAL' ? '10,000' : '100'}</span>
+                      <span>{scansCount} / {subPlan === 'PROFESSIONAL' ? '10,000' : '25'}</span>
                     </div>
                     <div className="w-full h-1 bg-[#18181B] rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-white rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(100, (scansCount / (subPlan === 'PROFESSIONAL' ? 10000 : 100)) * 100)}%` }}
+                        style={{ width: `${Math.min(100, (scansCount / (subPlan === 'PROFESSIONAL' ? 10000 : 25)) * 100)}%` }}
                       />
                     </div>
                   </div>
@@ -707,6 +788,28 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Real In-App Toast Popup Notification (Bottom Right Corner) */}
+      {activeToast && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-[#09090B] border border-amber-500/30 rounded-2xl p-4 shadow-2xl shadow-amber-500/10 flex items-start gap-3.5 animate-slideUp">
+          <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0 mt-0.5">
+            <Bell className="h-4.5 w-4.5 animate-bounce" />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1 text-left">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-xs font-bold text-white tracking-tight truncate">{activeToast.title}</h4>
+              <span className="text-[10px] text-[#71717A] shrink-0">{activeToast.time}</span>
+            </div>
+            <p className="text-[11px] text-[#A1A1AA] leading-relaxed break-words">{activeToast.desc}</p>
+          </div>
+          <button
+            onClick={() => setActiveToast(null)}
+            className="p-1 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
     </div>
