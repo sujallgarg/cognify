@@ -377,11 +377,15 @@ export default function ChannelDetailsModal({
               <div className="rounded-xl bg-[#09090B] border border-[#18181B] overflow-hidden flex flex-col">
                 <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-rose-500/80" />
+                    <span className={`h-2 w-2 rounded-full ${currentChannel.alert_type?.includes('ALERT') ? 'bg-rose-500/80' : 'bg-white/40'}`} />
                     <span className="font-medium text-white">Before (Previous Baseline)</span>
                   </div>
-                  <span className="text-[10px] font-mono text-rose-400/80 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
-                    - Previous
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                    currentChannel.alert_type?.includes('ALERT')
+                      ? 'text-rose-400/80 bg-rose-500/10 border-rose-500/20'
+                      : 'text-[#A1A1AA] bg-white/5 border-white/10'
+                  }`}>
+                    {currentChannel.alert_type?.includes('ALERT') ? '- Previous' : 'Baseline'}
                   </span>
                 </div>
 
@@ -390,7 +394,7 @@ export default function ChannelDetailsModal({
                     currentChannel.original_text.split('\n').map((line, idx) => (
                       <div key={idx} className="flex gap-3 hover:bg-white/[0.02] py-0.5 px-1 rounded">
                         <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{idx + 1}</span>
-                        <span className="text-rose-300/90 break-all">{line || ' '}</span>
+                        <span className={`break-all ${currentChannel.alert_type?.includes('ALERT') ? 'text-rose-300/90' : 'text-[#E4E4E7]'}`}>{line || ' '}</span>
                       </div>
                     ))
                   ) : (
@@ -403,11 +407,15 @@ export default function ChannelDetailsModal({
               <div className="rounded-xl bg-[#09090B] border border-[#18181B] overflow-hidden flex flex-col">
                 <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
+                    <span className={`h-2 w-2 rounded-full ${currentChannel.alert_type?.includes('ALERT') ? 'bg-emerald-500/80' : 'bg-white/40'}`} />
                     <span className="font-medium text-white">After (Current Version)</span>
                   </div>
-                  <span className="text-[10px] font-mono text-emerald-400/80 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                    + Current
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                    currentChannel.alert_type?.includes('ALERT')
+                      ? 'text-emerald-400/80 bg-emerald-500/10 border-emerald-500/20'
+                      : 'text-[#A1A1AA] bg-white/5 border-white/10'
+                  }`}>
+                    {currentChannel.alert_type?.includes('ALERT') ? '+ Current' : 'Current'}
                   </span>
                 </div>
 
@@ -416,7 +424,7 @@ export default function ChannelDetailsModal({
                     currentChannel.last_text.split('\n').map((line, idx) => (
                       <div key={idx} className="flex gap-3 hover:bg-white/[0.02] py-0.5 px-1 rounded">
                         <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{idx + 1}</span>
-                        <span className="text-emerald-300/90 break-all">{line || ' '}</span>
+                        <span className={`break-all ${currentChannel.alert_type?.includes('ALERT') ? 'text-emerald-300/90' : 'text-[#E4E4E7]'}`}>{line || ' '}</span>
                       </div>
                     ))
                   ) : (
