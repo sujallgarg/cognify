@@ -29,9 +29,20 @@ interface ChannelDetailsModalProps {
   onClose: () => void;
   onDelete: (id: string | number) => void;
   onScanTriggered?: (updatedChannel: Channel) => void;
+  scansCount?: number;
+  subPlan?: string;
+  onQuotaExceeded?: (title: string, desc: string) => void;
 }
 
-export default function ChannelDetailsModal({ channel, onClose, onDelete, onScanTriggered }: ChannelDetailsModalProps) {
+export default function ChannelDetailsModal({
+  channel,
+  onClose,
+  onDelete,
+  onScanTriggered,
+  scansCount,
+  subPlan = 'FREE',
+  onQuotaExceeded
+}: ChannelDetailsModalProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [currentChannel, setCurrentChannel] = useState<Channel>(channel);
   const [historyLogs, setHistoryLogs] = useState<ScanHistoryItem[]>([]);
@@ -128,6 +139,18 @@ export default function ChannelDetailsModal({ channel, onClose, onDelete, onScan
   }, [currentChannel.id, apiUrl]);
 
   const handleScan = async () => {
+    // Check if scan quota limit reached for active plan
+    const maxScans = subPlan === 'TEAM' ? 50000 : subPlan === 'PROFESSIONAL' ? 10000 : 25;
+    if (scansCount !== undefined && scansCount >= maxScans) {
+      if (onQuotaExceeded) {
+        onQuotaExceeded(
+          '🚨 Scan Quota Limit Reached',
+          `You have reached your limit of ${scansCount}/${maxScans} scans for the ${subPlan === 'FREE' ? 'Free Starter' : subPlan} plan. Please upgrade to run more scans.`
+        );
+      }
+      return; // BLOCK EXECUTION
+    }
+
     setIsScanning(true);
     const nowIso = new Date().toISOString();
 

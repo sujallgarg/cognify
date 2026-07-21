@@ -330,9 +330,41 @@ export default function DashboardPage() {
     }, 5000);
   };
 
+  const getMaxQuotas = (plan: string) => {
+    if (plan === 'TEAM') return { maxScans: 50000, maxSummaries: 5000 };
+    if (plan === 'PROFESSIONAL') return { maxScans: 10000, maxSummaries: 1000 };
+    return { maxScans: 25, maxSummaries: 15 };
+  };
+
+  const checkQuotaLimits = (requiredScans = 1, requiredSummaries = 1): boolean => {
+    const { maxScans, maxSummaries } = getMaxQuotas(subPlan);
+    if (scansCount + requiredScans > maxScans) {
+      addNotification(
+        '🚨 Scan Quota Limit Reached',
+        `You have used ${scansCount}/${maxScans} scans on your ${subPlan === 'FREE' ? 'Free Starter' : subPlan} plan. Please upgrade to run more scans.`
+      );
+      setActiveTab('billing');
+      return false; // BLOCKED
+    }
+    if (summariesCount + requiredSummaries > maxSummaries) {
+      addNotification(
+        '🚨 AI Summary Quota Limit Reached',
+        `You have used ${summariesCount}/${maxSummaries} AI summaries on your ${subPlan === 'FREE' ? 'Free Starter' : subPlan} plan. Please upgrade to generate more summaries.`
+      );
+      setActiveTab('billing');
+      return false; // BLOCKED
+    }
+    return true; // ALLOWED
+  };
+
   const handleAddChannel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetUrl || !user) return;
+
+    // Check plan quota limits before executing task
+    if (!checkQuotaLimits(1, 1)) {
+      return; // BLOCK EXECUTION
+    }
 
     // Normalize URL format
     let formattedUrl = targetUrl.trim();
@@ -774,12 +806,20 @@ export default function DashboardPage() {
         </main>
       </div>
 
+      {/* Channel Details Modal overlay */}
       {selectedChannel && (
         <ChannelDetailsModal
           channel={selectedChannel}
           onClose={() => setSelectedChannel(null)}
           onDelete={handleDeleteChannel}
           onScanTriggered={handleManualScan}
+          scansCount={scansCount}
+          subPlan={subPlan}
+          onQuotaExceeded={(title, desc) => {
+            addNotification(title, desc);
+            setActiveTab('billing');
+            setSelectedChannel(null);
+          }}
         />
       )}
 
