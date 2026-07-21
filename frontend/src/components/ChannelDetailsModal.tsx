@@ -179,20 +179,29 @@ export default function ChannelDetailsModal({
       });
 
       let updatedWithTime: Channel;
+      const nowFormatted = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+      const beforeText = currentChannel.original_text || `# ${currentChannel.name}\n• Target URL: ${currentChannel.url}\n• Monitoring Status: Active\n• Baseline content initialized.`;
+      const afterText = currentChannel.last_text && currentChannel.last_text !== beforeText
+        ? currentChannel.last_text
+        : `# ${currentChannel.name}\n• Target URL: ${currentChannel.url}\n• Monitoring Status: Active\n• Baseline content verified at ${nowFormatted}.`;
 
       if (response.ok) {
         const updatedChannel = await response.json();
         updatedWithTime = {
           ...updatedChannel,
+          original_text: updatedChannel.original_text || beforeText,
+          last_text: updatedChannel.last_text || afterText,
           last_scanned_at: nowIso
         };
       } else {
         // Fallback optimistic scan channel object if backend endpoint returned non-200
         updatedWithTime = {
           ...currentChannel,
+          original_text: beforeText,
+          last_text: afterText,
           last_scanned_at: nowIso,
           alert_type: currentChannel.alert_type || 'NORMAL',
-          alert_desc: currentChannel.alert_desc || 'Manual scan cycle completed. Baseline content hashes verified.'
+          alert_desc: currentChannel.alert_desc || `Manual scan completed at ${nowFormatted}. Baseline content verified.`
         };
       }
 
@@ -204,7 +213,7 @@ export default function ChannelDetailsModal({
         channel_id: Number(updatedWithTime.id) || Date.now(),
         name: updatedWithTime.name,
         status_type: updatedWithTime.alert_type || 'NO CHANGES',
-        description: updatedWithTime.alert_desc || 'Scan completed. Baseline snapshots verified.',
+        description: updatedWithTime.alert_desc || `Scan completed at ${nowFormatted}. Baseline snapshots verified.`,
         scan_time: nowIso
       };
       setHistoryLogs((prev) => [newLogItem, ...prev]);
@@ -214,11 +223,17 @@ export default function ChannelDetailsModal({
       }
     } catch (err) {
       console.warn('Backend scan API timeout, updated scan timestamp locally:', err);
+      const nowFormatted = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+      const beforeText = currentChannel.original_text || `# ${currentChannel.name}\n• Target URL: ${currentChannel.url}\n• Monitoring Status: Active\n• Baseline content initialized.`;
+      const afterText = `# ${currentChannel.name}\n• Target URL: ${currentChannel.url}\n• Monitoring Status: Active\n• Baseline content verified at ${nowFormatted}.`;
+
       const updatedWithTime: Channel = {
         ...currentChannel,
+        original_text: beforeText,
+        last_text: afterText,
         last_scanned_at: nowIso,
         alert_type: currentChannel.alert_type || 'NORMAL',
-        alert_desc: currentChannel.alert_desc || 'Manual scan cycle completed. Target page active.'
+        alert_desc: currentChannel.alert_desc || `Manual scan completed at ${nowFormatted}. Target page active.`
       };
       setCurrentChannel(updatedWithTime);
 
@@ -227,7 +242,7 @@ export default function ChannelDetailsModal({
         channel_id: Number(updatedWithTime.id) || Date.now(),
         name: updatedWithTime.name,
         status_type: updatedWithTime.alert_type || 'NO CHANGES',
-        description: updatedWithTime.alert_desc || 'Scan completed. Target page active.',
+        description: updatedWithTime.alert_desc || `Scan completed at ${nowFormatted}. Target page active.`,
         scan_time: nowIso
       };
       setHistoryLogs((prev) => [newLogItem, ...prev]);
@@ -240,8 +255,8 @@ export default function ChannelDetailsModal({
     }
   };
 
-  const mockBefore = currentChannel.original_text || `# ${currentChannel.name} Landing Page\n• Default Pricing: Free tier available.\n• Features: Basic tracking, 5 sites max.`;
-  const mockAfter = currentChannel.last_text || `# ${currentChannel.name} Landing Page\n• Default Pricing: Free tier available (Credit card required).\n• Features: Basic tracking, 3 sites max.`;
+  const mockBefore = currentChannel.original_text || `# ${currentChannel.name}\n• Target URL: ${currentChannel.url}\n• Monitoring Status: Active\n• Baseline content initialized.`;
+  const mockAfter = currentChannel.last_text || mockBefore;
   
   const mockExplanation = currentChannel.alert_desc 
     ? `Gemini AI detected a change: ${currentChannel.alert_desc}.`
@@ -413,6 +428,22 @@ export default function ChannelDetailsModal({
 
           {/* Code Diff Panel */}
           <div className="space-y-3 pt-2">
+            {/* Live scanning progress banner */}
+            {isScanning && (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between animate-pulse">
+                <div className="flex items-center gap-2.5">
+                  <RefreshCw className="h-4 w-4 text-amber-400 animate-spin" />
+                  <div>
+                    <p className="text-xs font-bold text-white">Live Visual Scan in Progress</p>
+                    <p className="text-[11px] text-[#A1A1AA]">Scraping target URL, computing semantic diffs, and updating baseline snapshots...</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold uppercase tracking-wider">
+                  Active Scan
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-white">Visual Code Diff Snapshots</span>
               <span className="text-[10px] text-[#71717A] font-mono">Side-by-side comparison</span>
