@@ -317,10 +317,10 @@ export default function ChannelDetailsModal({
               {onSummarizeChannel && (
                 <button
                   onClick={() => onSummarizeChannel(currentChannel)}
-                  className="px-3.5 py-2 rounded-xl border border-amber-500/30 text-xs font-bold text-amber-300 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 hover:border-amber-500/50 shadow-sm transition-all duration-200 flex items-center gap-1.5 cursor-pointer active:scale-95 group"
+                  className="px-3.5 py-2 rounded-xl border border-[#27272A] text-xs font-bold text-white bg-[#18181B] hover:bg-[#27272A] hover:border-white/40 shadow-sm transition-all duration-200 flex items-center gap-1.5 cursor-pointer active:scale-95 group"
                   title="Summarize website changes with AI"
                 >
-                  <Sparkles className="h-3.5 w-3.5 text-amber-400 group-hover:rotate-12 transition-transform duration-200" />
+                  <Sparkles className="h-3.5 w-3.5 text-white group-hover:rotate-12 transition-transform duration-200" />
                   <span>Summarize</span>
                 </button>
               )}

@@ -391,16 +391,16 @@ export default function DashboardPage() {
         ? new Date(channel.last_scanned_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
         : 'Recently';
 
-      const generatedSummary = `### ✨ Executive AI Summary: ${channel.name}
+      const generatedSummary = `### Executive AI Summary: ${channel.name}
 
-• **Target URL:** ${channel.url}
-• **Scan Interval:** ${channel.interval}
-• **Last Scanned:** ${timeStr}
-• **Status:** ${hasChange ? '⚠️ Content Modifications Identified' : '✅ Baseline Content Verified'}
+• Target URL: ${channel.url}
+• Scan Interval: ${channel.interval}
+• Last Scanned: ${timeStr}
+• Status: ${hasChange ? 'Content Modifications Identified' : 'Baseline Content Verified'}
 
 ---
 
-#### 📌 Summary of Key Findings:
+#### Summary of Key Findings:
 ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:** Website content, pricing terms, or structural text modified on the monitored target.\n3. **Recommended Action:** Review the updated target URL and adjust integration settings or request budgets accordingly.` : `1. **Baseline Status:** No structural or pricing modifications detected during the latest automated scan.\n2. **Content Verification:** Webpage text matches baseline snapshot.\n3. **Monitoring Status:** Active background visual diff engine running on ${channel.interval.toLowerCase()} schedule.`}`;
 
       setSummaryText(generatedSummary);
@@ -1017,7 +1017,7 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
             {/* Header */}
             <div className="p-5 border-b border-[#18181B] flex justify-between items-center bg-black">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-amber-400" />
+                <Sparkles className="h-5 w-5 text-white" />
                 <h3 className="text-base font-bold text-white">AI Executive Summary</h3>
               </div>
               <button
@@ -1032,8 +1032,8 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
             <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               {summaryLoading ? (
                 <div className="py-12 flex flex-col items-center justify-center space-y-3">
-                  <Sparkles className="h-8 w-8 text-amber-400 animate-spin" />
-                  <p className="text-xs text-[#A1A1AA] animate-pulse">Generating Gemini AI Summary for {summaryModalChannel.name}...</p>
+                  <Sparkles className="h-8 w-8 text-white animate-spin" />
+                  <p className="text-xs text-[#A1A1AA] animate-pulse">Generating AI Summary for {summaryModalChannel.name}...</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1053,7 +1053,7 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
                     className="px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
                     title="Send AI Change Summary via Email"
                   >
-                    <Mail className="h-4 w-4 text-blue-400" />
+                    <Mail className="h-4 w-4 text-white" />
                     <span>Email</span>
                   </button>
 
@@ -1063,7 +1063,7 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
                     className="px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
                     title="Dispatch AI Summary to Slack channel"
                   >
-                    <MessageSquare className="h-4 w-4 text-emerald-400" />
+                    <MessageSquare className="h-4 w-4 text-white" />
                     <span>{dispatchStatus === 'slack' ? 'Sending...' : 'Slack'}</span>
                   </button>
 
@@ -1073,7 +1073,7 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
                     className="px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
                     title="Dispatch AI Summary to Discord webhook"
                   >
-                    <Send className="h-4 w-4 text-indigo-400" />
+                    <Send className="h-4 w-4 text-white" />
                     <span>{dispatchStatus === 'discord' ? 'Sending...' : 'Discord'}</span>
                   </button>
                 </div>
@@ -1168,21 +1168,21 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
         </div>
       )}
 
-      {/* Real In-App Toast Popup Notification (Bottom Right Corner) */}
+      {/* Real In-App Toast Popup Notification (Black & White Theme) */}
       {activeToast && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-md w-full bg-[#0D0D11]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex items-start gap-4 animate-slideUp transition-all hover:border-white/20">
-          {/* Glowing Icon Badge */}
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-400 border border-amber-500/30 shrink-0 shadow-inner">
-            <Sparkles className="h-4.5 w-4.5 animate-pulse text-amber-300" />
+        <div className="fixed bottom-6 right-6 z-50 max-w-md w-full bg-[#09090B] border border-white/20 rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.9)] flex items-start gap-4 animate-slideUp transition-all hover:border-white/40">
+          {/* Black & White Icon Badge */}
+          <div className="p-2.5 rounded-xl bg-[#18181B] text-white border border-[#27272A] shrink-0 shadow-inner">
+            <Bell className="h-4.5 w-4.5 text-white animate-pulse" />
           </div>
 
           <div className="flex-1 min-w-0 space-y-1 text-left">
             <div className="flex items-center justify-between gap-2">
               <h4 className="text-xs font-bold text-white tracking-wide truncate flex items-center gap-2">
                 <span>{activeToast.title}</span>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping shrink-0" />
               </h4>
-              <span className="text-[10px] font-mono text-[#71717A] shrink-0 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+              <span className="text-[10px] font-mono text-[#A1A1AA] shrink-0 bg-[#18181B] px-2 py-0.5 rounded-md border border-[#27272A]">
                 {activeToast.time}
               </span>
             </div>
@@ -1190,13 +1190,13 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
           </div>
 
           {/* Quick Action Controls */}
-          <div className="flex items-center gap-1 shrink-0 bg-black/40 p-1 rounded-lg border border-white/5">
+          <div className="flex items-center gap-1 shrink-0 bg-[#18181B] p-1 rounded-lg border border-[#27272A]">
             <button
               onClick={toggleSound}
               title={soundEnabled ? 'Mute popup sound' : 'Unmute popup sound'}
-              className="p-1.5 rounded-md text-[#71717A] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              className="p-1.5 rounded-md text-white hover:bg-white/10 transition-all cursor-pointer"
             >
-              {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-emerald-400" /> : <VolumeX className="h-3.5 w-3.5 text-rose-400" />}
+              {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-white" /> : <VolumeX className="h-3.5 w-3.5 text-[#71717A]" />}
             </button>
             <button
               onClick={() => setActiveToast(null)}
