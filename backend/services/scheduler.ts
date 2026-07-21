@@ -29,28 +29,55 @@ async function scrapePage(url: string): Promise<string> {
   }
 }
 
+function isDueForScan(channel: any): boolean {
+  if (!channel.last_scanned_at) return true; // Never scanned before
+
+  const lastScanned = new Date(channel.last_scanned_at).getTime();
+  const now = Date.now();
+  const elapsedMs = now - lastScanned;
+
+  const intervalCode = String(channel.interval || 'DAILY').toUpperCase();
+
+  if (intervalCode.includes('HOUR') || intervalCode === 'HOURLY') {
+    // HOURLY: Due after 1 hour (3,600,000 ms)
+    return elapsedMs >= 60 * 60 * 1000;
+  }
+  
+  if (intervalCode.includes('WEEK') || intervalCode === 'WEEKLY') {
+    // WEEKLY: Due after 7 days (604,800,000 ms)
+    return elapsedMs >= 7 * 24 * 60 * 60 * 1000;
+  }
+
+  // DAILY: Due after 24 hours (86,400,000 ms)
+  return elapsedMs >= 24 * 60 * 60 * 1000;
+}
+
 export function startBackgroundScanner() {
   console.log('[Background Scanner] Engine initialized. Monitoring target channels in background...');
 
-  // Run initial scan cycle 10 seconds after server startup
-  setTimeout(runScanCycle, 10000);
+  // Run initial scan cycle 5 seconds after server startup
+  setTimeout(runScanCycle, 5000);
 
-  // Run recurring scan cycle every 3 minutes (180,000 ms)
-  setInterval(runScanCycle, 180000);
+  // Check channel schedule every 1 minute (60,000 ms)
+  setInterval(runScanCycle, 60000);
 }
 
 async function runScanCycle() {
   try {
-    console.log('[Background Scanner] Running background website scan cycle...');
     const result = await pool.query('SELECT * FROM channels');
     const channels = result.rows;
 
     if (channels.length === 0) {
-      console.log('[Background Scanner] No target channels registered in database.');
       return;
     }
 
     for (const channel of channels) {
+      // Check if channel is due for scan based on HOURLY / DAILY / WEEKLY interval
+      if (!isDueForScan(channel)) {
+        continue;
+      }
+
+      console.log(`[Background Scanner] Target "${channel.name}" (${channel.interval || 'DAILY'}) is due for scan. Executing background check...`);
       try {
         const newText = await scrapePage(channel.url);
 
@@ -112,7 +139,12 @@ async function runScanCycle() {
             `
           });
         } else {
-          console.log(`[Background Scanner] Target "${channel.name}" verified. No changes detected.`);
+          // Update last_scanned_at timestamp so next scan cycle respects configured interval (HOURLY / DAILY / WEEKLY)
+          await pool.query(
+            `UPDATE channels SET last_scanned_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [channel.id]
+          );
+          console.log(`[Background Scanner] Target "${channel.name}" verified (${channel.interval || 'DAILY'}). Next scan scheduled accordingly.`);
         }
       } catch (channelErr) {
         console.error(`[Background Scanner] Error processing target ${channel.name}:`, channelErr);
