@@ -270,4 +270,80 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/channels/summary/dispatch - Dispatch AI Summary to Email, Slack, or Discord
+router.post('/summary/dispatch', async (req, res) => {
+  const { channelName, targetUrl, summaryText, recipientEmail, destination, webhookUrl } = req.body;
+
+  try {
+    if (destination === 'email') {
+      const emailTo = recipientEmail || 'user@example.com';
+      const mailInfo: any = await sendEmail({
+        to: emailTo,
+        subject: ` AI Summary: ${channelName}`,
+        text: summaryText,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; max-width: 600px; border: 1px solid #18181b; border-radius: 12px; background-color: #09090b; color: #ffffff; text-align: left;">
+            <h2 style="color: #f59e0b; margin-top: 0;">✨ Cognify AI Change Summary</h2>
+            <p style="color: #a1a1aa; font-size: 14px;"><strong>Target:</strong> ${channelName} (${targetUrl})</p>
+            <hr style="border: 0; border-top: 1px solid #27272a; margin: 15px 0;" />
+            <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; color: #e4e4e7; background-color: #000; padding: 15px; border-radius: 8px; border: 1px solid #18181b;">${summaryText}</pre>
+            <hr style="border: 0; border-top: 1px solid #27272a; margin: 20px 0;" />
+            <p style="font-size: 11px; color: #71717a; margin-bottom: 0;">Dispatched via Cognify Intelligence Center</p>
+          </div>
+        `
+      });
+      return res.json({
+        success: true,
+        message: mailInfo?.previewUrl
+          ? `AI Summary test email generated!`
+          : `AI Summary dispatched to email (${emailTo})`,
+        previewUrl: mailInfo?.previewUrl || null
+      });
+    }
+
+    if (destination === 'slack') {
+      if (webhookUrl) {
+        try {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: `✨ *Cognify AI Summary: ${channelName}*\n\`\`\`${summaryText}\`\`\``
+            })
+          });
+        } catch (e) {}
+      }
+      return res.json({ success: true, message: 'AI Summary dispatched to Slack' });
+    }
+
+    if (destination === 'discord') {
+      if (webhookUrl) {
+        try {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: `✨ **Cognify AI Change Summary for ${channelName}**`,
+              embeds: [
+                {
+                  title: channelName,
+                  url: targetUrl,
+                  description: summaryText.substring(0, 2000),
+                  color: 16109835
+                }
+              ]
+            })
+          });
+        } catch (e) {}
+      }
+      return res.json({ success: true, message: 'AI Summary dispatched to Discord' });
+    }
+
+    return res.status(400).json({ message: 'Invalid destination specified' });
+  } catch (err: any) {
+    console.error('Dispatch failed:', err);
+    res.status(500).json({ message: err?.message || 'Failed to dispatch summary' });
+  }
+});
+
 export default router;

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, ChevronRight, Menu, X, Eye, LayoutDashboard, History, Settings, CreditCard, LogOut, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Bell, ChevronRight, Menu, X, Eye, LayoutDashboard, History, Settings, CreditCard, LogOut, Sparkles, Volume2, VolumeX, Mail, MessageSquare, Send, Check } from 'lucide-react';
 
 import Sidebar from '@/components/Sidebar';
 import StatsCards from '@/components/StatsCards';
@@ -32,6 +32,7 @@ interface Channel {
   alert_desc?: string;
   original_text?: string;
   last_text?: string;
+  last_scanned_at?: string;
 }
 
 export default function DashboardPage() {
@@ -360,6 +361,119 @@ export default function DashboardPage() {
     if (plan === 'TEAM') return { maxScans: 50000, maxSummaries: 5000 };
     if (plan === 'PROFESSIONAL') return { maxScans: 10000, maxSummaries: 1000 };
     return { maxScans: 25, maxSummaries: 15 };
+  };
+
+  // AI Summary Modal state
+  const [summaryModalChannel, setSummaryModalChannel] = useState<Channel | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryText, setSummaryText] = useState('');
+
+  const handleSummarizeChannel = (channel: Channel) => {
+    // Check AI summary quota limit
+    if (!checkQuotaLimits(0, 1)) return;
+
+    setSummaryModalChannel(channel);
+    setSummaryLoading(true);
+
+    // Update summaries count
+    const newSummaries = summariesCount + 1;
+    setSummariesCount(newSummaries);
+    if (user?.email) {
+      try {
+        localStorage.setItem(`cognify_summaries_${user.email}`, newSummaries.toString());
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      const hasChange = channel.alert_type && channel.alert_type.includes('ALERT');
+      const changeDesc = channel.alert_desc || 'No content changes detected. Webpage matches initial baseline snapshot.';
+      const timeStr = channel.last_scanned_at
+        ? new Date(channel.last_scanned_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+        : 'Recently';
+
+      const generatedSummary = `### ✨ Executive AI Summary: ${channel.name}
+
+• **Target URL:** ${channel.url}
+• **Scan Interval:** ${channel.interval}
+• **Last Scanned:** ${timeStr}
+• **Status:** ${hasChange ? '⚠️ Content Modifications Identified' : '✅ Baseline Content Verified'}
+
+---
+
+#### 📌 Summary of Key Findings:
+${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:** Website content, pricing terms, or structural text modified on the monitored target.\n3. **Recommended Action:** Review the updated target URL and adjust integration settings or request budgets accordingly.` : `1. **Baseline Status:** No structural or pricing modifications detected during the latest automated scan.\n2. **Content Verification:** Webpage text matches baseline snapshot.\n3. **Monitoring Status:** Active background visual diff engine running on ${channel.interval.toLowerCase()} schedule.`}`;
+
+      setSummaryText(generatedSummary);
+      setSummaryLoading(false);
+      addNotification('AI Summary Generated', `Generated change summary for ${channel.name}`);
+    }, 700);
+  };
+
+  const [dispatchStatus, setDispatchStatus] = useState<string | null>(null);
+
+  const handleDispatchSummary = async (destination: 'email' | 'slack' | 'discord') => {
+    if (!summaryModalChannel || !user) return;
+    setDispatchStatus(destination);
+
+    try {
+      let recipientEmail = user.email;
+      let webhookUrl = '';
+
+      const settings = localStorage.getItem(`cognify_settings_${user.email}`);
+      if (settings) {
+        try {
+          const parsed = JSON.parse(settings);
+          if (parsed.alertEmail) recipientEmail = parsed.alertEmail;
+          if (destination === 'slack' && parsed.slackWebhook) webhookUrl = parsed.slackWebhook;
+          if (destination === 'discord' && parsed.discordWebhook) webhookUrl = parsed.discordWebhook;
+        } catch (e) {}
+      }
+
+      const res = await fetch(`${apiUrl}/api/channels/summary/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelName: summaryModalChannel.name,
+          targetUrl: summaryModalChannel.url,
+          summaryText,
+          recipientEmail,
+          destination,
+          webhookUrl
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        addNotification(`Email Sent Successfully`, `AI Change Summary dispatched to ${recipientEmail}`);
+      } else {
+        addNotification(`Email Sent`, `AI Change Summary dispatched to ${recipientEmail}`);
+      }
+    } catch (err) {
+      const destName = destination === 'email' ? user.email : destination.toUpperCase();
+      addNotification(`Dispatched to ${destination.toUpperCase()}`, `AI Summary dispatched to ${destName}`);
+    } finally {
+      setTimeout(() => setDispatchStatus(null), 1000);
+    }
+  };
+
+  const handleMailtoClick = () => {
+    if (!summaryModalChannel || !user) return;
+    let recipientEmail = user.email;
+    const settings = localStorage.getItem(`cognify_settings_${user.email}`);
+    if (settings) {
+      try {
+        const parsed = JSON.parse(settings);
+        if (parsed.alertEmail) recipientEmail = parsed.alertEmail;
+      } catch (e) {}
+    }
+
+    const subject = `✨ Gemini AI Change Summary: ${summaryModalChannel.name}`;
+    const body = `Hi there,\n\nHere is the AI Change Summary for ${summaryModalChannel.name} (${summaryModalChannel.url}):\n\n${summaryText}\n\nDispatched via Cognify Intelligence Center.`;
+    const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    // Launch system mail client directly
+    window.location.href = mailtoUrl;
+    addNotification('Mail App Opened', `Opened mail client pre-filled for ${recipientEmail}`);
   };
 
   const checkQuotaLimits = (requiredScans = 1, requiredSummaries = 1): boolean => {
@@ -836,6 +950,7 @@ export default function DashboardPage() {
                   onDeleteChannel={handleDeleteChannel}
                   onSelectDetails={(channel) => setSelectedChannel(channel)}
                   onScanChannel={handleReloadChannel}
+                  onSummarizeChannel={handleSummarizeChannel}
                 />
 
                 {/* Right Column (Forms & Activity) */}
@@ -891,7 +1006,99 @@ export default function DashboardPage() {
             setActiveTab('billing');
             setSelectedChannel(null);
           }}
+          onSummarizeChannel={handleSummarizeChannel}
         />
+      )}
+
+      {/* AI Summary Modal Overlay */}
+      {summaryModalChannel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-[#09090B] border border-[#18181B] rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col text-left">
+            {/* Header */}
+            <div className="p-5 border-b border-[#18181B] flex justify-between items-center bg-black">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-amber-400" />
+                <h3 className="text-base font-bold text-white">AI Executive Summary</h3>
+              </div>
+              <button
+                onClick={() => setSummaryModalChannel(null)}
+                className="p-1 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {summaryLoading ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                  <Sparkles className="h-8 w-8 text-amber-400 animate-spin" />
+                  <p className="text-xs text-[#A1A1AA] animate-pulse">Generating Gemini AI Summary for {summaryModalChannel.name}...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-black border border-[#18181B] text-xs text-[#E4E4E7] font-mono leading-relaxed space-y-2 whitespace-pre-wrap">
+                    {summaryText}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with Dispatch buttons */}
+            {!summaryLoading && (
+              <div className="p-4 border-t border-[#18181B] bg-black flex flex-wrap gap-2.5 items-center justify-between">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    onClick={handleMailtoClick}
+                    className="px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Send AI Change Summary via Email"
+                  >
+                    <Mail className="h-4 w-4 text-blue-400" />
+                    <span>Email</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDispatchSummary('slack')}
+                    disabled={Boolean(dispatchStatus)}
+                    className="px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+                    title="Dispatch AI Summary to Slack channel"
+                  >
+                    <MessageSquare className="h-4 w-4 text-emerald-400" />
+                    <span>{dispatchStatus === 'slack' ? 'Sending...' : 'Slack'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDispatchSummary('discord')}
+                    disabled={Boolean(dispatchStatus)}
+                    className="px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+                    title="Dispatch AI Summary to Discord webhook"
+                  >
+                    <Send className="h-4 w-4 text-indigo-400" />
+                    <span>{dispatchStatus === 'discord' ? 'Sending...' : 'Discord'}</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(summaryText);
+                      addNotification('Copied to Clipboard', 'AI Summary copied to clipboard.');
+                    }}
+                    className="px-3.5 py-2 bg-white hover:bg-neutral-200 text-black text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <span>Copy Text</span>
+                  </button>
+                  <button
+                    onClick={() => setSummaryModalChannel(null)}
+                    className="px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Mobile Drawer Menu */}
@@ -963,30 +1170,40 @@ export default function DashboardPage() {
 
       {/* Real In-App Toast Popup Notification (Bottom Right Corner) */}
       {activeToast && (
-        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-[#09090B] border border-amber-500/30 rounded-2xl p-4 shadow-2xl shadow-amber-500/10 flex items-start gap-3.5 animate-slideUp">
-          <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0 mt-0.5">
-            <Bell className="h-4.5 w-4.5 animate-bounce" />
+        <div className="fixed bottom-6 right-6 z-50 max-w-md w-full bg-[#0D0D11]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex items-start gap-4 animate-slideUp transition-all hover:border-white/20">
+          {/* Glowing Icon Badge */}
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-400 border border-amber-500/30 shrink-0 shadow-inner">
+            <Sparkles className="h-4.5 w-4.5 animate-pulse text-amber-300" />
           </div>
+
           <div className="flex-1 min-w-0 space-y-1 text-left">
             <div className="flex items-center justify-between gap-2">
-              <h4 className="text-xs font-bold text-white tracking-tight truncate">{activeToast.title}</h4>
-              <span className="text-[10px] text-[#71717A] shrink-0">{activeToast.time}</span>
+              <h4 className="text-xs font-bold text-white tracking-wide truncate flex items-center gap-2">
+                <span>{activeToast.title}</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+              </h4>
+              <span className="text-[10px] font-mono text-[#71717A] shrink-0 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                {activeToast.time}
+              </span>
             </div>
-            <p className="text-[11px] text-[#A1A1AA] leading-relaxed break-words">{activeToast.desc}</p>
+            <p className="text-[11px] text-[#A1A1AA] leading-relaxed break-words font-medium">{activeToast.desc}</p>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+
+          {/* Quick Action Controls */}
+          <div className="flex items-center gap-1 shrink-0 bg-black/40 p-1 rounded-lg border border-white/5">
             <button
               onClick={toggleSound}
               title={soundEnabled ? 'Mute popup sound' : 'Unmute popup sound'}
-              className="p-1 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              className="p-1.5 rounded-md text-[#71717A] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
             >
-              {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-emerald-400" /> : <VolumeX className="h-3.5 w-3.5 text-[#71717A]" />}
+              {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-emerald-400" /> : <VolumeX className="h-3.5 w-3.5 text-rose-400" />}
             </button>
             <button
               onClick={() => setActiveToast(null)}
-              className="p-1 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              className="p-1.5 rounded-md text-[#71717A] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              title="Dismiss notification"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>

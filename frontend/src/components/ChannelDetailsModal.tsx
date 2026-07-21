@@ -32,6 +32,7 @@ interface ChannelDetailsModalProps {
   scansCount?: number;
   subPlan?: string;
   onQuotaExceeded?: (title: string, desc: string) => void;
+  onSummarizeChannel?: (channel: Channel) => void;
 }
 
 export default function ChannelDetailsModal({
@@ -41,7 +42,8 @@ export default function ChannelDetailsModal({
   onScanTriggered,
   scansCount,
   subPlan = 'FREE',
-  onQuotaExceeded
+  onQuotaExceeded,
+  onSummarizeChannel
 }: ChannelDetailsModalProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [currentChannel, setCurrentChannel] = useState<Channel>(channel);
@@ -259,7 +261,7 @@ export default function ChannelDetailsModal({
   const mockAfter = currentChannel.last_text || mockBefore;
   
   const mockExplanation = currentChannel.alert_desc 
-    ? `Gemini AI detected a change: ${currentChannel.alert_desc}.`
+    ? `AI detected a change: ${currentChannel.alert_desc}.`
     : `No changes detected. The semantic hashes of this page match the latest snapshot taken in the database. Scan status is normal.`;
 
   return (
@@ -312,6 +314,16 @@ export default function ChannelDetailsModal({
             </div>
             
             <div className="flex items-center gap-2">
+              {onSummarizeChannel && (
+                <button
+                  onClick={() => onSummarizeChannel(currentChannel)}
+                  className="px-3.5 py-2 rounded-xl border border-amber-500/30 text-xs font-bold text-amber-300 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 hover:border-amber-500/50 shadow-sm transition-all duration-200 flex items-center gap-1.5 cursor-pointer active:scale-95 group"
+                  title="Summarize website changes with AI"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400 group-hover:rotate-12 transition-transform duration-200" />
+                  <span>Summarize</span>
+                </button>
+              )}
               <button
                 onClick={handleScan}
                 disabled={isScanning}

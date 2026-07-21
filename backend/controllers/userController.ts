@@ -22,9 +22,11 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     // Check if user exists
-    const userExistQuery = 'SELECT id FROM users WHERE email = $1';
-    const userExist = await pool.query(userExistQuery, [email]);
+    const userExistQuery = 'SELECT id FROM users WHERE LOWER(TRIM(email)) = $1';
+    const userExist = await pool.query(userExistQuery, [cleanEmail]);
 
     if (userExist.rows.length > 0) {
       res.status(400).json({ message: 'User already exists' });
@@ -37,7 +39,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
     // Create user
     const createUserQuery = 'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email';
-    const newUser = await pool.query(createUserQuery, [name, email, hashedPassword]);
+    const newUser = await pool.query(createUserQuery, [name.trim(), cleanEmail, hashedPassword]);
 
     const createdUser = newUser.rows[0];
 
@@ -93,9 +95,11 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     // Check for user email
-    const userQuery = 'SELECT * FROM users WHERE email = $1';
-    const userRes = await pool.query(userQuery, [email]);
+    const userQuery = 'SELECT * FROM users WHERE LOWER(TRIM(email)) = $1';
+    const userRes = await pool.query(userQuery, [cleanEmail]);
 
     if (userRes.rows.length === 0) {
       res.status(401).json({ message: 'Invalid credentials' });

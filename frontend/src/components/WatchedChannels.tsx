@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Globe, ExternalLink, RotateCw, ChevronRight, Trash2 } from 'lucide-react';
+import { Globe, ExternalLink, RotateCw, ChevronRight, Trash2, Sparkles } from 'lucide-react';
 
 interface Channel {
   id: string | number;
@@ -20,9 +20,10 @@ interface WatchedChannelsProps {
   onDeleteChannel: (id: string | number) => void;
   onSelectDetails: (channel: Channel) => void;
   onScanChannel: (channel: Channel) => void;
+  onSummarizeChannel?: (channel: Channel) => void;
 }
 
-export default function WatchedChannels({ channels, onDeleteChannel, onSelectDetails, onScanChannel }: WatchedChannelsProps) {
+export default function WatchedChannels({ channels, onDeleteChannel, onSelectDetails, onScanChannel, onSummarizeChannel }: WatchedChannelsProps) {
   const [activeScanningId, setActiveScanningId] = useState<string | number | null>(null);
 
   const handleScanClick = async (channel: Channel) => {
@@ -114,10 +115,21 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
                 </div>
 
                 <div className="flex items-center space-x-2">
+                  {onSummarizeChannel && (
+                    <button
+                      onClick={() => onSummarizeChannel(channel)}
+                      className="px-3 py-1.5 rounded-xl border border-amber-500/30 text-xs font-bold text-amber-300 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 hover:border-amber-500/50 shadow-sm transition-all duration-200 flex items-center gap-1.5 cursor-pointer active:scale-95 group"
+                      title="Summarize website changes with AI"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-amber-400 group-hover:rotate-12 transition-transform duration-200" />
+                      <span>Summarize</span>
+                    </button>
+                  )}
                   <button 
                     onClick={() => handleScanClick(channel)}
                     disabled={isScanningThis}
                     className="p-2 rounded-lg text-[#71717A] hover:text-white hover:bg-white/5 disabled:opacity-50 transition-all cursor-pointer"
+                    title="Scan website target now"
                   >
                     <RotateCw className={`h-4 w-4 ${isScanningThis ? 'animate-spin text-white' : ''}`} />
                   </button>
@@ -130,6 +142,7 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
                   <button
                     onClick={() => onDeleteChannel(channel.id)}
                     className="p-2 rounded-lg text-[#71717A] hover:text-red-500 hover:bg-white/5 transition-all cursor-pointer"
+                    title="Delete channel"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
