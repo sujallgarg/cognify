@@ -456,18 +456,44 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
     }
   };
 
-  const handleMailtoClick = () => {
-    if (!summaryModalChannel || !user) return;
-    let recipientEmail = user.email;
+  const isEmailAlertsEnabled = (): boolean => {
+    if (!user) return true;
     const settings = localStorage.getItem(`cognify_settings_${user.email}`);
     if (settings) {
       try {
         const parsed = JSON.parse(settings);
-        if (parsed.alertEmail) recipientEmail = parsed.alertEmail;
+        if (parsed.emailAlerts !== undefined) return Boolean(parsed.emailAlerts);
+      } catch (e) {}
+    }
+    return true;
+  };
+
+  const handleMailtoClick = () => {
+    if (!summaryModalChannel || !user) return;
+    let recipientEmail = user.email;
+    let emailAlertsEnabled = true;
+
+    const settingsKey = `cognify_settings_${user.email}`;
+    const settings = localStorage.getItem(settingsKey);
+    let parsedSettings: any = {};
+    if (settings) {
+      try {
+        parsedSettings = JSON.parse(settings);
+        if (parsedSettings.alertEmail) recipientEmail = parsedSettings.alertEmail;
+        if (parsedSettings.emailAlerts !== undefined) emailAlertsEnabled = Boolean(parsedSettings.emailAlerts);
       } catch (e) {}
     }
 
-    const subject = `✨ Gemini AI Change Summary: ${summaryModalChannel.name}`;
+    // If Email Notifications are currently DISABLED, auto-enable on click
+    if (!emailAlertsEnabled) {
+      parsedSettings.emailAlerts = true;
+      try {
+        localStorage.setItem(settingsKey, JSON.stringify(parsedSettings));
+      } catch (e) {}
+      addNotification('Email Notifications Enabled', `Auto-enabled email notifications in settings for ${recipientEmail}.`);
+    }
+
+    const subject = `✨ Executive AI Change Summary: ${summaryModalChannel.name}`;
     const body = `Hi there,\n\nHere is the AI Change Summary for ${summaryModalChannel.name} (${summaryModalChannel.url}):\n\n${summaryText}\n\nDispatched via Cognify Intelligence Center.`;
     const mailtoUrl = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
@@ -1050,11 +1076,13 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     onClick={handleMailtoClick}
-                    className="px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border border-[#27272A] text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
-                    title="Send AI Change Summary via Email"
+                    className={`px-3.5 py-2 bg-[#18181B] hover:bg-[#27272A] border text-xs font-semibold rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 ${
+                      isEmailAlertsEnabled() ? 'border-[#27272A] text-white' : 'border-white/40 text-[#A1A1AA]'
+                    }`}
+                    title={isEmailAlertsEnabled() ? 'Send AI Change Summary via Email' : 'Email notifications currently disabled. Click to enable email alerts and send summary.'}
                   >
-                    <Mail className="h-4 w-4 text-white" />
-                    <span>Email</span>
+                    <Mail className={`h-4 w-4 ${isEmailAlertsEnabled() ? 'text-white' : 'text-[#71717A]'}`} />
+                    <span>{isEmailAlertsEnabled() ? 'Email' : 'Enable & Send Email'}</span>
                   </button>
 
                   <button
