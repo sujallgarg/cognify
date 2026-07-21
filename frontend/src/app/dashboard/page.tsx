@@ -89,6 +89,41 @@ export default function DashboardPage() {
       { id: 2, name: 'Anthropic News', url: 'https://anthropic.com/news', interval: 'DAILY', alert_type: 'NEWS_UPDATE' }
     ];
 
+    // Read current local storage channels
+    let localItems: Channel[] = [];
+    try {
+      const stored = localStorage.getItem(`cognify_channels_${cleanEmail}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) localItems = parsed;
+      }
+    } catch (e) {}
+
+    const mergeAndStore = (incoming: Channel[]) => {
+      setChannels((prev) => {
+        const map = new Map<string, Channel>();
+        // Add server/default incoming items
+        incoming.forEach((item) => {
+          if (item && item.url) map.set(item.url.trim().toLowerCase(), item);
+        });
+        // Add local cached items (preserves user-added sites)
+        localItems.forEach((item) => {
+          if (item && item.url) map.set(item.url.trim().toLowerCase(), item);
+        });
+        // Add current state items
+        prev.forEach((item) => {
+          if (item && item.url) map.set(item.url.trim().toLowerCase(), item);
+        });
+
+        const merged = Array.from(map.values());
+        if (merged.length === 0) {
+          merged.push(...defaultChannels);
+        }
+        localStorage.setItem(`cognify_channels_${cleanEmail}`, JSON.stringify(merged));
+        return merged;
+      });
+    };
+
     try {
       const response = await fetch(`${apiUrl}/api/channels?email=${encodeURIComponent(cleanEmail)}`, {
         method: 'GET',
@@ -99,7 +134,7 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          setChannels(data);
+          mergeAndStore(data);
           return;
         }
       }
@@ -122,14 +157,10 @@ export default function DashboardPage() {
         }
       }
 
-      if (created.length > 0) {
-        setChannels(created);
-      } else {
-        setChannels(defaultChannels);
-      }
+      mergeAndStore(created.length > 0 ? created : defaultChannels);
     } catch (err) {
-      console.warn('Backend API unavailable, using offline fallback channels:', err);
-      setChannels(defaultChannels);
+      console.warn('Backend API unavailable, using cached/fallback channels:', err);
+      mergeAndStore(defaultChannels);
     }
   };
 
@@ -143,6 +174,21 @@ export default function DashboardPage() {
     try {
       const u = JSON.parse(savedUser);
       setUser(u);
+
+      // Load user channels from localStorage first so user added sites display INSTANTLY
+      const userChannelsKey = `cognify_channels_${u.email}`;
+      const savedChannels = localStorage.getItem(userChannelsKey);
+      if (savedChannels) {
+        try {
+          const parsed = JSON.parse(savedChannels);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setChannels(parsed);
+          }
+        } catch (err) {
+          // ignore
+        }
+      }
+
       fetchChannels(u.email);
 
       // Load user stats
@@ -378,20 +424,33 @@ export default function DashboardPage() {
     }
   };
 
+  // Synchronize channels to user-scoped localStorage whenever channels state changes
+  useEffect(() => {
+    if (user && user.email && channels.length > 0) {
+      try {
+        localStorage.setItem(`cognify_channels_${user.email}`, JSON.stringify(channels));
+      } catch (e) {
+        console.error('Failed to persist channels:', e);
+      }
+    }
+  }, [channels, user]);
+
   const handleDeleteChannel = async (id: string | number) => {
     if (!user) return;
     const channelToDelete = channels.find(c => c.id === id);
+    const updated = channels.filter(c => c.id !== id);
+    setChannels(updated);
+    localStorage.setItem(`cognify_channels_${user.email}`, JSON.stringify(updated));
+
+    if (channelToDelete) {
+      addOperation('Removed website monitor', channelToDelete.name);
+      addNotification('Website Monitor Removed', `Stopped monitoring: ${channelToDelete.name}`);
+    }
+
     try {
-      const response = await fetch(`${apiUrl}/api/channels/${id}`, {
+      await fetch(`${apiUrl}/api/channels/${id}`, {
         method: 'DELETE'
       });
-      if (response.ok) {
-        setChannels(channels.filter(c => c.id !== id));
-        if (channelToDelete) {
-          addOperation('Removed website monitor', channelToDelete.name);
-          addNotification('Website Monitor Removed', `Stopped monitoring: ${channelToDelete.name}`);
-        }
-      }
     } catch (err) {
       console.error(err);
     }
