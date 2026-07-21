@@ -385,17 +385,29 @@ export default function DashboardPage() {
     }
 
     setTimeout(() => {
+      let aiProviderName = 'Google Gemini';
+      const settings = user?.email ? localStorage.getItem(`cognify_settings_${user.email}`) : null;
+      if (settings) {
+        try {
+          const parsed = JSON.parse(settings);
+          if (parsed.aiProvider === 'openai') aiProviderName = 'OpenAI GPT-4o';
+          else if (parsed.aiProvider === 'anthropic') aiProviderName = 'Anthropic Claude 3.5';
+          else if (parsed.aiProvider === 'gemini') aiProviderName = 'Google Gemini 2.5';
+        } catch (e) {}
+      }
+
       const hasChange = channel.alert_type && channel.alert_type.includes('ALERT');
       const changeDesc = channel.alert_desc || 'No content changes detected. Webpage matches initial baseline snapshot.';
       const timeStr = channel.last_scanned_at
         ? new Date(channel.last_scanned_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
         : 'Recently';
 
-      const generatedSummary = `### Executive AI Summary: ${channel.name}
+      const generatedSummary = `### Executive AI Summary (${aiProviderName}): ${channel.name}
 
 • Target URL: ${channel.url}
 • Scan Interval: ${channel.interval}
 • Last Scanned: ${timeStr}
+• AI Engine: ${aiProviderName}
 • Status: ${hasChange ? 'Content Modifications Identified' : 'Baseline Content Verified'}
 
 ---
@@ -405,7 +417,7 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
 
       setSummaryText(generatedSummary);
       setSummaryLoading(false);
-      addNotification('AI Summary Generated', `Generated change summary for ${channel.name}`);
+      addNotification('AI Summary Generated', `Generated ${aiProviderName} summary for ${channel.name}`);
     }, 700);
   };
 

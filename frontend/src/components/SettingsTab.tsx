@@ -14,6 +14,7 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
   const [slackWebhook, setSlackWebhook] = useState('');
   const [discordWebhook, setDiscordWebhook] = useState('');
   const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [aiProvider, setAiProvider] = useState<'gemini' | 'openai' | 'anthropic'>('gemini');
 
   // Account profile details
   const [profileName, setProfileName] = useState('');
@@ -37,6 +38,7 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
         setSlackWebhook(parsed.slackWebhook ?? '');
         setDiscordWebhook(parsed.discordWebhook ?? '');
         setGeminiApiKey(parsed.geminiApiKey ?? '');
+        setAiProvider(parsed.aiProvider ?? 'gemini');
       } catch (e) {
         console.error('Failed to parse settings:', e);
       }
@@ -64,6 +66,7 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
       slackWebhook,
       discordWebhook,
       geminiApiKey,
+      aiProvider,
       ...updatedFields
     };
     localStorage.setItem(settingsKey, JSON.stringify(currentSettings));
@@ -111,8 +114,9 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
     setSavingKey(true);
     setTimeout(() => {
       setSavingKey(false);
-      saveSettings({ geminiApiKey });
-      alert('Gemini API key updated and encrypted successfully.');
+      saveSettings({ geminiApiKey, aiProvider });
+      const providerName = aiProvider === 'openai' ? 'OpenAI' : aiProvider === 'anthropic' ? 'Anthropic Claude' : 'Google Gemini';
+      alert(`${providerName} AI configuration & API key updated successfully.`);
     }, 800);
   };
 
@@ -327,26 +331,73 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
           <div className="bg-[#09090B] border border-[#18181B] rounded-xl p-6 space-y-4 text-left">
             <div className="flex items-center gap-2 border-b border-[#18181B] pb-3">
               <Key className="h-4.5 w-4.5 text-[#A1A1AA]" />
-              <h3 className="font-semibold text-white text-sm">Custom Gemini Key</h3>
+              <h3 className="font-semibold text-white text-sm">AI Engine & API Keys</h3>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <p className="text-[11px] text-[#71717A] leading-relaxed">
-                By default, Cognify uses our shared developer keys. To bypass daily usage caps, supply your own Google Gemini API key.
+                Select your preferred LLM provider and enter your API key. Cognify will run all webpage change summarizations using your custom provider.
               </p>
-              <input
-                type="password"
-                value={geminiApiKey}
-                onChange={(e) => setGeminiApiKey(e.target.value)}
-                placeholder={geminiApiKey ? '••••••••••••••••' : 'AIzaSy...'}
-                className="w-full bg-black border border-[#18181B] focus:border-[#27272A] rounded-lg py-2 px-3 text-xs text-white placeholder-[#3F3F46] focus:outline-none transition-colors"
-              />
+
+              {/* Provider Selection */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-[#A1A1AA] uppercase tracking-wider">AI Model Provider</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'gemini', label: 'Gemini', subtitle: 'Google' },
+                    { id: 'openai', label: 'OpenAI', subtitle: 'GPT-4o' },
+                    { id: 'anthropic', label: 'Anthropic', subtitle: 'Claude 3.5' },
+                  ].map((provider) => (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      onClick={() => {
+                        setAiProvider(provider.id as any);
+                        saveSettings({ aiProvider: provider.id });
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        aiProvider === provider.id
+                          ? 'bg-white text-black border-white font-bold'
+                          : 'bg-black text-[#A1A1AA] border-[#18181B] hover:border-[#27272A] hover:text-white'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{provider.label}</div>
+                      <div className={`text-[9px] ${aiProvider === provider.id ? 'text-neutral-600' : 'text-[#71717A]'}`}>
+                        {provider.subtitle}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* API Key Input */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-[#A1A1AA] uppercase tracking-wider">
+                  {aiProvider === 'openai' ? 'OpenAI Secret Key (sk-...)' : aiProvider === 'anthropic' ? 'Anthropic API Key (sk-ant-...)' : 'Google Gemini Key (AIzaSy...)'}
+                </label>
+                <input
+                  type="password"
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  placeholder={
+                    geminiApiKey
+                      ? '••••••••••••••••'
+                      : aiProvider === 'openai'
+                      ? 'sk-proj-...'
+                      : aiProvider === 'anthropic'
+                      ? 'sk-ant-api03-...'
+                      : 'AIzaSy...'
+                  }
+                  className="w-full bg-black border border-[#18181B] focus:border-[#27272A] rounded-lg py-2 px-3 text-xs text-white placeholder-[#3F3F46] focus:outline-none transition-colors"
+                />
+              </div>
+
               <button 
                 onClick={handleSaveApiKey}
                 disabled={savingKey}
-                className="w-full bg-white hover:bg-neutral-200 disabled:opacity-50 text-black text-xs font-semibold py-2.5 rounded-lg transition-all cursor-pointer"
+                className="w-full bg-white hover:bg-neutral-200 disabled:opacity-50 text-black text-xs font-bold py-2.5 rounded-xl transition-all cursor-pointer"
               >
-                {savingKey ? 'Saving...' : 'Save API Key'}
+                {savingKey ? 'Saving Config...' : `Save ${aiProvider === 'openai' ? 'OpenAI' : aiProvider === 'anthropic' ? 'Anthropic' : 'Gemini'} Config`}
               </button>
             </div>
           </div>
