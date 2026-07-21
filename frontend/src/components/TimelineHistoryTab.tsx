@@ -55,22 +55,31 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
   };
 
   const loadHistoryLogs = async () => {
+    if (!userEmail) return;
     setIsRefreshing(true);
     try {
-      const response = await fetch(`${apiUrl}/api/channels/history?email=${userEmail}`);
+      const response = await fetch(`${apiUrl}/api/channels/history?email=${encodeURIComponent(userEmail.trim())}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
       if (response.ok) {
         const data = await response.json();
-        setHistoryLogs((prev) => {
-          const combined = [...data, ...prev];
-          const map = new Map();
-          combined.forEach((item) => map.set(item.id, item));
-          return Array.from(map.values()).sort(
-            (a, b) => new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime()
-          );
-        });
+        if (Array.isArray(data) && data.length > 0) {
+          setHistoryLogs((prev) => {
+            const combined = [...data, ...prev];
+            const map = new Map<number, HistoryLog>();
+            combined.forEach((item) => {
+              if (item && item.id) map.set(item.id, item);
+            });
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime()
+            );
+          });
+        }
       }
     } catch (err) {
-      console.error('Failed to load scan history logs:', err);
+      console.warn('Failed to load scan history logs:', err);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -80,21 +89,35 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
   useEffect(() => {
     let isMounted = true;
     const fetchHistory = async () => {
+      if (!userEmail) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch(`${apiUrl}/api/channels/history?email=${userEmail}`);
+        const response = await fetch(`${apiUrl}/api/channels/history?email=${encodeURIComponent(userEmail.trim())}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+
         if (response.ok && isMounted) {
           const data = await response.json();
-          setHistoryLogs((prev) => {
-            const combined = [...data, ...prev];
-            const map = new Map();
-            combined.forEach((item) => map.set(item.id, item));
-            return Array.from(map.values()).sort(
-              (a, b) => new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime()
-            );
-          });
+          if (Array.isArray(data) && data.length > 0) {
+            setHistoryLogs((prev) => {
+              const combined = [...data, ...prev];
+              const map = new Map<number, HistoryLog>();
+              combined.forEach((item) => {
+                if (item && item.id) map.set(item.id, item);
+              });
+              return Array.from(map.values()).sort(
+                (a, b) => new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime()
+              );
+            });
+          }
         }
       } catch (err) {
-        console.error('Failed to load scan history logs:', err);
+        console.warn('Failed to load scan history logs:', err);
       } finally {
         if (isMounted) setLoading(false);
       }

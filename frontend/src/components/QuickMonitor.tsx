@@ -31,9 +31,9 @@ export default function QuickMonitor({
         <div className="space-y-1 text-left">
           <label className="text-[10px] font-semibold text-[#71717A] uppercase tracking-wider">Target URL</label>
           <input
-            type="url"
+            type="text"
             required
-            placeholder="https://example.com/pricing"
+            placeholder="https://example.com/pricing or example.com"
             value={targetUrl}
             onChange={(e) => setTargetUrl(e.target.value)}
             className="w-full bg-black border border-[#18181B] focus:border-[#27272A] rounded-lg py-2 px-3 text-xs text-white placeholder-[#3F3F46] focus:outline-none transition-colors"
