@@ -261,7 +261,7 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
               historyLogs.map((log) => {
                 const isExpanded = expandedId === log.id;
                 const formattedTime = formatHistoryTime(log.scan_time);
-                const isAlert = log.status_type === 'HIGH ALERT' || log.status_type.includes('ALERT');
+                const isAlert = log.status_type === 'HIGH ALERT' || log.status_type.includes('ALERT') || log.status_type === 'UNTRACKABLE';
 
                 return (
                   <div
@@ -274,10 +274,12 @@ export default function TimelineHistoryTab({ userEmail }: TimelineHistoryTabProp
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-white text-sm">{log.name}</span>
                           <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                              isAlert
-                                ? 'bg-[#FEF3C7] text-[#D97706]'
-                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                              log.status_type === 'UNTRACKABLE'
+                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                : isAlert
+                                ? 'bg-[#FEF3C7] text-[#D97706] border-transparent'
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                             }`}
                           >
                             {log.status_type}

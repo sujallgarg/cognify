@@ -1,6 +1,56 @@
 import { pool } from '../config/db.js';
 import { sendEmail } from '../config/mailer.js';
 
+function detectUntrackableReason(text: string, html: string): string | null {
+  const lowercaseText = text.toLowerCase();
+  const lowercaseHtml = html.toLowerCase();
+
+  if (
+    lowercaseText.includes('captcha') ||
+    lowercaseText.includes('hcaptcha') ||
+    lowercaseText.includes('recaptcha') ||
+    lowercaseText.includes('prove you are human') ||
+    lowercaseText.includes('bot protection') ||
+    lowercaseHtml.includes('g-recaptcha') ||
+    lowercaseHtml.includes('cloudflare ray id')
+  ) {
+    return '[UNTRACKABLE] Protected by CAPTCHA or anti-bot firewall systems.';
+  }
+
+  if (
+    (lowercaseText.includes('online banking') || lowercaseText.includes('bank login') || lowercaseText.includes('customer portal login')) &&
+    (lowercaseText.includes('account number') || lowercaseText.includes('routing number'))
+  ) {
+    return '[UNTRACKABLE] Restricted. Financial and banking portals are private systems and cannot be indexed.';
+  }
+
+  if (
+    lowercaseText.includes('sign in with google') ||
+    lowercaseText.includes('google account login') ||
+    lowercaseText.includes('mail.google.com') ||
+    lowercaseHtml.includes('accounts.google.com')
+  ) {
+    return '[UNTRACKABLE] Private Google Services (Gmail/Docs) require user authentication.';
+  }
+
+  if (
+    lowercaseText.includes('notion login') ||
+    lowercaseHtml.includes('notion.so/login')
+  ) {
+    return '[UNTRACKABLE] Private Notion workspace pages require workspace credentials.';
+  }
+
+  if (
+    lowercaseText.includes('sign in to your account') ||
+    lowercaseText.includes('enter your credentials') ||
+    (lowercaseText.includes('password') && (lowercaseText.includes('sign in') || lowercaseText.includes('login') || lowercaseText.includes('sign-in')))
+  ) {
+    return '[UNTRACKABLE] Private dashboard / page. Authenticated content is currently restricted.';
+  }
+
+  return null;
+}
+
 async function scrapePage(url: string): Promise<string> {
   try {
     let targetUrl = url;
@@ -32,6 +82,11 @@ async function scrapePage(url: string): Promise<string> {
     text = text.replace(/\n\s*\n/g, '\n');
     text = text.replace(/[ \t]+/g, ' ');
     text = text.trim();
+
+    const untrackable = detectUntrackableReason(text, html);
+    if (untrackable) {
+      return untrackable;
+    }
 
     return text.substring(0, 500) || 'Empty page content';
   } catch (error: any) {
@@ -95,7 +150,10 @@ async function runScanCycle() {
           let alertDesc = 'Page content modified. Detected text updates during automated background scan.';
           let isHighImpact = false;
 
-          if (isPriceChange) {
+          if (newText.startsWith('[UNTRACKABLE]')) {
+            alertType = 'UNTRACKABLE';
+            alertDesc = newText.replace('[UNTRACKABLE] ', '');
+          } else if (isPriceChange) {
             alertType = 'HIGH ALERT';
             const oldPrice = removed.find((l: string) => /\$\d+|\d+\$|₹\d+|\d+/i.test(l)) || 'Previous Pricing';
             const newPrice = added.find((l: string) => /\$\d+|\d+\$|₹\d+|\d+/i.test(l)) || 'New Pricing';
@@ -108,7 +166,7 @@ async function runScanCycle() {
             `UPDATE channels 
              SET last_text = $1, alert_type = $2, alert_desc = $3, last_scanned_at = CURRENT_TIMESTAMP
              WHERE id = $4`,
-            [newText, alertType === 'MEDIUM ALERT' ? 'ALERT' : alertType, alertDesc, channel.id]
+            [newText, alertType, alertDesc, channel.id]
           );
 
           // Insert into scan history
@@ -124,7 +182,9 @@ async function runScanCycle() {
               alertDesc, 
               channel.original_text || channel.last_text, 
               newText,
-              `Automatic background scan. Change severity level generated: ${alertDesc}`
+              alertType === 'UNTRACKABLE'
+                ? `Access Denied: ${alertDesc} Cognify AI identified signature elements of a restricted or private system (e.g. login walls, private Notion, banking portals, or CAPTCHA screens). These portals are protected and cannot be scraped directly.`
+                : `Automatic background scan. Change severity level generated: ${alertDesc}`
             ]
           );
 

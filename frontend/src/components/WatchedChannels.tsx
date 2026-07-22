@@ -105,7 +105,11 @@ export default function WatchedChannels({ channels, onDeleteChannel, onSelectDet
 
                   {channel.alert_type && (
                     <div className="mt-2 flex items-start gap-2 max-w-full">
-                      <span className="text-[9px] font-bold bg-[#FEF3C7] text-[#D97706] px-1.5 py-0.5 rounded shrink-0">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                        channel.alert_type === 'UNTRACKABLE'
+                          ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                          : 'bg-[#FEF3C7] border-transparent text-[#D97706]'
+                      }`}>
                         {channel.alert_type}
                       </span>
                       <span className="text-xs text-[#E4E4E7] font-medium leading-relaxed truncate max-w-[220px] sm:max-w-[340px] md:max-w-[420px]">

@@ -4,6 +4,56 @@ import { sendEmail } from '../config/mailer.js';
 
 const router = express.Router();
 
+function detectUntrackableReason(text: string, html: string): string | null {
+  const lowercaseText = text.toLowerCase();
+  const lowercaseHtml = html.toLowerCase();
+
+  if (
+    lowercaseText.includes('captcha') ||
+    lowercaseText.includes('hcaptcha') ||
+    lowercaseText.includes('recaptcha') ||
+    lowercaseText.includes('prove you are human') ||
+    lowercaseText.includes('bot protection') ||
+    lowercaseHtml.includes('g-recaptcha') ||
+    lowercaseHtml.includes('cloudflare ray id')
+  ) {
+    return '[UNTRACKABLE] Protected by CAPTCHA or anti-bot firewall systems.';
+  }
+
+  if (
+    (lowercaseText.includes('online banking') || lowercaseText.includes('bank login') || lowercaseText.includes('customer portal login')) &&
+    (lowercaseText.includes('account number') || lowercaseText.includes('routing number'))
+  ) {
+    return '[UNTRACKABLE] Restricted. Financial and banking portals are private systems and cannot be indexed.';
+  }
+
+  if (
+    lowercaseText.includes('sign in with google') ||
+    lowercaseText.includes('google account login') ||
+    lowercaseText.includes('mail.google.com') ||
+    lowercaseHtml.includes('accounts.google.com')
+  ) {
+    return '[UNTRACKABLE] Private Google Services (Gmail/Docs) require user authentication.';
+  }
+
+  if (
+    lowercaseText.includes('notion login') ||
+    lowercaseHtml.includes('notion.so/login')
+  ) {
+    return '[UNTRACKABLE] Private Notion workspace pages require workspace credentials.';
+  }
+
+  if (
+    lowercaseText.includes('sign in to your account') ||
+    lowercaseText.includes('enter your credentials') ||
+    (lowercaseText.includes('password') && (lowercaseText.includes('sign in') || lowercaseText.includes('login') || lowercaseText.includes('sign-in')))
+  ) {
+    return '[UNTRACKABLE] Private dashboard / page. Authenticated content is currently restricted.';
+  }
+
+  return null;
+}
+
 // Helper to scrape webpage content and extract clean text
 async function scrapePage(url: string): Promise<string> {
   try {
@@ -39,6 +89,11 @@ async function scrapePage(url: string): Promise<string> {
     text = text.replace(/\n\s*\n/g, '\n');
     text = text.replace(/[ \t]+/g, ' ');
     text = text.trim();
+
+    const untrackable = detectUntrackableReason(text, html);
+    if (untrackable) {
+      return untrackable;
+    }
 
     return text.substring(0, 500) || 'Empty page content';
   } catch (error: any) {
@@ -194,7 +249,11 @@ router.post('/:id/scan', async (req, res) => {
     let isHighImpact = false;
 
     // Simple diff comparison and High Impact classification
-    if (newText !== channel.last_text) {
+    if (newText.startsWith('[UNTRACKABLE]')) {
+      alertType = 'UNTRACKABLE';
+      alertDesc = newText.replace('[UNTRACKABLE] ', '');
+      isHighImpact = true; // Dispatch alerts for untrackable target modifications/states
+    } else if (newText !== channel.last_text) {
       const origLines = (channel.last_text || '').split('\n').map((l: string) => l.trim()).filter(Boolean);
       const newLines = (newText || '').split('\n').map((l: string) => l.trim()).filter(Boolean);
       const removed = origLines.filter((l: string) => !newLines.includes(l));
@@ -241,7 +300,9 @@ router.post('/:id/scan', async (req, res) => {
         alertDesc || 'Scan completed. No modifications detected.', 
         channel.original_text, 
         newText,
-        alertType !== 'NO CHANGES'
+        alertType === 'UNTRACKABLE'
+          ? `Access Denied: ${alertDesc} Cognify AI identified signature elements of a restricted or private system (e.g. login walls, private Notion, banking portals, or CAPTCHA screens). These portals are protected and cannot be scraped directly.`
+          : alertType !== 'NO CHANGES'
           ? `Automatic diff analysis. Change severity level generated: ${alertDesc}`
           : 'Content verified. Semantic snapshots match target version.'
       ]

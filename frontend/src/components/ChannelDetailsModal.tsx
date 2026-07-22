@@ -146,6 +146,19 @@ export default function ChannelDetailsModal({
     const last = currentChannel.last_text || '';
     const isAlert = currentChannel.alert_type?.includes('ALERT');
 
+    if (last.startsWith('[UNTRACKABLE]')) {
+      return {
+        severity: 'RESTRICTED',
+        severityLabel: 'RESTRICTED: Scrape Blocked',
+        summaryLines: [
+          'Access Blocked: Target requires authentication or is protected by anti-bot firewall systems.',
+          last.replace('[UNTRACKABLE] ', '')
+        ],
+        changedBeforeLines: orig ? orig.split('\n').slice(0, 5).map((l, i) => ({ num: i + 1, text: l })) : [],
+        changedAfterLines: [{ num: 1, text: last }],
+      };
+    }
+
     if (!isAlert && orig === last) {
       const allLines = orig ? orig.split('\n').slice(0, 8).map((l, i) => ({ num: i + 1, text: l, isDiff: false })) : [];
       return {
@@ -468,7 +481,7 @@ export default function ChannelDetailsModal({
           {/* Visual Code Diff Snapshots (Before vs After) */}
           {(() => {
             const smartDiff = computeSmartDiff();
-            const isAlert = currentChannel.alert_type?.includes('ALERT');
+            const isAlert = currentChannel.alert_type?.includes('ALERT') || currentChannel.alert_type === 'UNTRACKABLE';
 
             return (
               <div className="space-y-3 pt-2">
@@ -476,7 +489,7 @@ export default function ChannelDetailsModal({
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-white">Visual Code Diff Snapshots</span>
                     <span className="text-[10px] text-[#A1A1AA] bg-white/5 border border-white/10 px-2 py-0.5 rounded font-mono">
-                      {isAlert ? 'Focused Change Lines Only' : 'Baseline Verified'}
+                      {currentChannel.alert_type === 'UNTRACKABLE' ? 'Scrape Blocked' : isAlert ? 'Focused Change Lines Only' : 'Baseline Verified'}
                     </span>
                   </div>
                   <span className="text-[10px] text-[#71717A] font-mono">Side-by-side comparison</span>
