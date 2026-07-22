@@ -179,3 +179,61 @@ export const updateUserProfile = async (req: Request, res: Response): Promise<vo
     res.status(500).json({ message: errorMessage });
   }
 };
+
+// @desc    Get user delivery settings
+// @route   GET /api/users/settings
+// @access  Public
+export const getUserSettings = async (req: Request, res: Response): Promise<void> => {
+  const { email } = req.query;
+  if (!email) {
+    res.status(400).json({ message: 'User email is required' });
+    return;
+  }
+
+  try {
+    const cleanEmail = String(email).trim().toLowerCase();
+    const result = await pool.query('SELECT * FROM user_settings WHERE user_email = $1', [cleanEmail]);
+    if (result.rows.length === 0) {
+      // Return default configuration if none exists
+      res.json({
+        user_email: cleanEmail,
+        email_alerts: true,
+        alert_email: cleanEmail,
+        slack_webhook: '',
+        discord_webhook: ''
+      });
+      return;
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ message: errorMessage });
+  }
+};
+
+// @desc    Save/Update user delivery settings
+// @route   POST /api/users/settings
+// @access  Public
+export const updateUserSettings = async (req: Request, res: Response): Promise<void> => {
+  const { email, emailAlerts, alertEmail, slackWebhook, discordWebhook } = req.body;
+  if (!email) {
+    res.status(400).json({ message: 'User email is required' });
+    return;
+  }
+
+  try {
+    const cleanEmail = String(email).trim().toLowerCase();
+    const result = await pool.query(
+      `INSERT INTO user_settings (user_email, email_alerts, alert_email, slack_webhook, discord_webhook, updated_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_email) 
+       DO UPDATE SET email_alerts = $2, alert_email = $3, slack_webhook = $4, discord_webhook = $5, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [cleanEmail, emailAlerts ?? true, alertEmail || cleanEmail, slackWebhook || '', discordWebhook || '']
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ message: errorMessage });
+  }
+};

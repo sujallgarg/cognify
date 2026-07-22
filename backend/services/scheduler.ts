@@ -85,15 +85,32 @@ async function runScanCycle() {
         if (channel.last_text && newText !== channel.last_text) {
           console.log(`[Background Scanner] 🚨 ALERT: Content change detected on "${channel.name}" (${channel.url})`);
           
-          const alertType = 'HIGH ALERT';
-          const alertDesc = 'Page content modified. Detected live text updates during automated background scan.';
+          const origLines = (channel.last_text || '').split('\n').map((l: string) => l.trim()).filter(Boolean);
+          const newLines = (newText || '').split('\n').map((l: string) => l.trim()).filter(Boolean);
+          const removed = origLines.filter((l: string) => !newLines.includes(l));
+          const added = newLines.filter((l: string) => !origLines.includes(l));
+
+          const isPriceChange = removed.some((l: string) => /\$\d+|\d+\$|₹\d+|\bprice\b|\bplan\b/i.test(l)) ||
+                                added.some((l: string) => /\$\d+|\d+\$|₹\d+|\bprice\b|\bplan\b/i.test(l));
+
+          let alertType = 'MEDIUM ALERT';
+          let alertDesc = 'Page content modified. Detected text updates during automated background scan.';
+          let isHighImpact = false;
+
+          if (isPriceChange) {
+            alertType = 'HIGH ALERT';
+            const oldPrice = removed.find((l: string) => /\$\d+|\d+\$|₹\d+|\d+/i.test(l)) || 'Previous Pricing';
+            const newPrice = added.find((l: string) => /\$\d+|\d+\$|₹\d+|\d+/i.test(l)) || 'New Pricing';
+            alertDesc = `Price/Plan modification detected: "${oldPrice}" ➔ "${newPrice}"`;
+            isHighImpact = true;
+          }
 
           // Update channels record
           await pool.query(
             `UPDATE channels 
              SET last_text = $1, alert_type = $2, alert_desc = $3, last_scanned_at = CURRENT_TIMESTAMP
              WHERE id = $4`,
-            [newText, alertType, alertDesc, channel.id]
+            [newText, alertType === 'MEDIUM ALERT' ? 'ALERT' : alertType, alertDesc, channel.id]
           );
 
           // Insert into scan history
@@ -109,35 +126,89 @@ async function runScanCycle() {
               alertDesc, 
               channel.original_text || channel.last_text, 
               newText,
-              `Gemini AI background diff analysis. Automatic scanner detected content modification: ${alertDesc}`
+              `Automatic background scan. Change severity level generated: ${alertDesc}`
             ]
           );
 
-          // Dispatch email alert to channel owner
-          await sendEmail({
-            to: channel.user_email,
-            subject: `🚨 Background Alert: Updates detected on ${channel.name}`,
-            text: `Hi there,\n\nOur automated background scanner detected content changes on your monitored target: ${channel.name} (${channel.url}).\n\nDetails: ${alertDesc}\n\nLog in to your Cognify dashboard to review visual diffs.`,
-            html: `
-              <div style="font-family: sans-serif; padding: 20px; max-width: 600px; border: 1px solid #e4e4e7; border-radius: 8px; background-color: #fafafa; text-align: left;">
-                <h2 style="color: #ef4444; margin-top: 0;">🚨 Automated Background Scanner Alert</h2>
-                <p>Hello,</p>
-                <p>Cognify background engine detected content modifications on your watched channel: <strong>${channel.name}</strong>.</p>
-                <table style="width: 100%; border-collapse: collapse; margin: 15px 0; text-align: left;">
-                  <tr>
-                    <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; font-weight: bold; width: 120px;">Target URL:</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #e4e4e7;"><a href="${channel.url}">${channel.url}</a></td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; font-weight: bold;">Change detected:</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; color: #ef4444; font-weight: 500;">${alertDesc}</td>
-                  </tr>
-                </table>
-                <p>Review full visual diffs in your Cognify Intelligence Center:</p>
-                <a href="${process.env.NEXT_PUBLIC_CLIENT_URL || 'http://localhost:3000'}/dashboard" style="display: inline-block; padding: 10px 18px; color: #fff; background-color: #000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Open Intelligence Center</a>
-              </div>
-            `
-          });
+          // Fetch user settings from DB
+          const settingsResult = await pool.query('SELECT * FROM user_settings WHERE user_email = $1', [channel.user_email.trim().toLowerCase()]);
+          const settings = settingsResult.rows[0] || {};
+
+          // Automatically notify on High Impact Change
+          if (isHighImpact) {
+            // 1. Email Alert
+            const emailEnabled = settings.email_alerts !== false;
+            const recipient = settings.alert_email || channel.user_email;
+            if (emailEnabled) {
+              try {
+                await sendEmail({
+                  to: recipient,
+                  subject: `🚨 [HIGH IMPACT CHANGE] Price/Plan Alert on ${channel.name}`,
+                  text: `Hi there,\n\nOur automated scanner detected a High Impact Price or Plan change on monitored target: ${channel.name} (${channel.url}).\n\nDetails: ${alertDesc}\n\nReview visual diffs in your Cognify Intelligence Center.`,
+                  html: `
+                    <div style="font-family: sans-serif; padding: 20px; max-width: 600px; border: 1px solid #ef4444; border-radius: 12px; background-color: #fafafa; text-align: left;">
+                      <h2 style="color: #ef4444; margin-top: 0;">🚨 Automated Background Scanner Alert</h2>
+                      <p>Hello,</p>
+                      <p>Cognify background engine detected a critical price or plan modification on your monitored channel: <strong>${channel.name}</strong>.</p>
+                      <table style="width: 100%; border-collapse: collapse; margin: 15px 0; text-align: left;">
+                        <tr>
+                          <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; font-weight: bold; width: 120px;">Target URL:</td>
+                          <td style="padding: 8px; border-bottom: 1px solid #e4e4e7;"><a href="${channel.url}">${channel.url}</a></td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; font-weight: bold;">Details:</td>
+                          <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; color: #ef4444; font-weight: bold;">${alertDesc}</td>
+                        </tr>
+                      </table>
+                      <a href="${process.env.NEXT_PUBLIC_CLIENT_URL || 'http://localhost:3000'}/dashboard" style="display: inline-block; padding: 10px 18px; color: #fff; background-color: #ef4444; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Open Intelligence Center</a>
+                    </div>
+                  `
+                });
+              } catch (mailErr) {
+                console.error('Failed to send background scan alert email:', mailErr);
+              }
+            }
+
+            // 2. Slack Dispatch
+            const slackWebhook = settings.slack_webhook;
+            if (slackWebhook) {
+              try {
+                await fetch(slackWebhook, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    text: `🚨 *[HIGH IMPACT PRICE ALERT] Automated background scan detected change on ${channel.name}*\n*Target:* ${channel.url}\n*Change Details:* ${alertDesc}`
+                  })
+                });
+              } catch (slackErr) {
+                console.error('Failed to dispatch Slack background webhook:', slackErr);
+              }
+            }
+
+            // 3. Discord Dispatch
+            const discordWebhook = settings.discord_webhook;
+            if (discordWebhook) {
+              try {
+                await fetch(discordWebhook, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    content: `🚨 **[HIGH IMPACT PRICE ALERT] Automated background scan detected change on ${channel.name}**`,
+                    embeds: [
+                      {
+                        title: channel.name,
+                        url: channel.url,
+                        description: alertDesc,
+                        color: 15548997
+                      }
+                    ]
+                  })
+                });
+              } catch (discordErr) {
+                console.error('Failed to dispatch Discord background webhook:', discordErr);
+              }
+            }
+          }
         } else {
           // Update last_scanned_at timestamp so next scan cycle respects configured interval (HOURLY / DAILY / WEEKLY)
           await pool.query(

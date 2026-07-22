@@ -173,11 +173,28 @@ router.post('/:id/scan', async (req, res) => {
 
     let alertType = '';
     let alertDesc = '';
+    let isHighImpact = false;
 
-    // Simple diff comparison
+    // Simple diff comparison and High Impact classification
     if (newText !== channel.last_text) {
-      alertType = 'HIGH ALERT';
-      alertDesc = `Page content modified. Detected text updates.`;
+      const origLines = (channel.last_text || '').split('\n').map((l: string) => l.trim()).filter(Boolean);
+      const newLines = (newText || '').split('\n').map((l: string) => l.trim()).filter(Boolean);
+      const removed = origLines.filter((l: string) => !newLines.includes(l));
+      const added = newLines.filter((l: string) => !origLines.includes(l));
+
+      const isPriceChange = removed.some((l: string) => /\$\d+|\d+\$|₹\d+|\bprice\b|\bplan\b/i.test(l)) ||
+                            added.some((l: string) => /\$\d+|\d+\$|₹\d+|\bprice\b|\bplan\b/i.test(l));
+
+      if (isPriceChange) {
+        alertType = 'HIGH ALERT';
+        const oldPrice = removed.find((l: string) => /\$\d+|\d+\$|₹\d+|\d+/i.test(l)) || 'Previous Pricing';
+        const newPrice = added.find((l: string) => /\$\d+|\d+\$|₹\d+|\d+/i.test(l)) || 'New Pricing';
+        alertDesc = `Price/Plan modification detected: "${oldPrice}" ➔ "${newPrice}"`;
+        isHighImpact = true;
+      } else {
+        alertType = 'MEDIUM ALERT';
+        alertDesc = `Page content modified. Detected text or layout updates.`;
+      }
     } else {
       alertType = 'NO CHANGES';
       alertDesc = '';
@@ -206,46 +223,89 @@ router.post('/:id/scan', async (req, res) => {
         alertDesc || 'Scan completed. No modifications detected.', 
         channel.original_text, 
         newText,
-        alertType === 'HIGH ALERT'
-          ? `Gemini AI diff analysis generated. Content change identified: ${alertDesc}`
+        alertType !== 'NO CHANGES'
+          ? `Automatic diff analysis. Change severity level generated: ${alertDesc}`
           : 'Content verified. Semantic snapshots match target version.'
       ]
     );
 
-    const { alertEmail } = req.body;
+    // Fetch user delivery settings from database
+    const settingsResult = await pool.query('SELECT * FROM user_settings WHERE user_email = $1', [updatedChannel.user_email.trim().toLowerCase()]);
+    const settings = settingsResult.rows[0] || {};
 
-    // If changes were detected, dispatch alert notification email
-    if (alertType === 'HIGH ALERT') {
-      try {
-        const recipient = alertEmail || updatedChannel.user_email;
-        await sendEmail({
-          to: recipient,
-          subject: `🚨 Change Alert: Updates detected on ${updatedChannel.name}`,
-          text: `Hi there,\n\nWe detected changes on the monitored page: ${updatedChannel.name} (${updatedChannel.url}).\n\nDetails: ${alertDesc}\n\nReview the modifications in your Cognify Intelligence Center.`,
-          html: `
-            <div style="font-family: sans-serif; padding: 20px; max-width: 600px; border: 1px solid #e4e4e7; border-radius: 8px; background-color: #fafafa; text-align: left;">
-              <h2 style="color: #ef4444; margin-top: 0;">🚨 Cognify Change Intelligence Alert</h2>
-              <p>Hello,</p>
-              <p>We detected content modifications on your watched channel: <strong>${updatedChannel.name}</strong>.</p>
-              <table style="width: 100%; border-collapse: collapse; margin: 15px 0; text-align: left;">
-                <tr>
-                  <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; font-weight: bold; width: 120px;">Target URL:</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #e4e4e7;"><a href="${updatedChannel.url}">${updatedChannel.url}</a></td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; font-weight: bold;">Change detected:</td>
-                  <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; color: #ef4444; font-weight: 500;">${alertDesc}</td>
-                </tr>
-              </table>
-              <p>To inspect a side-by-side visual diff of the modifications, click the button below to open your workspace dashboard:</p>
-              <a href="${process.env.NEXT_PUBLIC_CLIENT_URL || 'http://localhost:3000'}/dashboard" style="display: inline-block; padding: 10px 18px; color: #fff; background-color: #000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Open Intelligence Center</a>
-              <hr style="border: 0; border-top: 1px solid #e4e4e7; margin: 20px 0;" />
-              <p style="font-size: 11px; color: #71717a; margin-bottom: 0;">You received this notification because email alerts are enabled for this device in your delivery preferences settings.</p>
-            </div>
-          `
-        });
-      } catch (mailErr) {
-        console.error('Failed to send scan alert email:', mailErr);
+    // If changes were classified as HIGH impact, automatically dispatch to all configured platforms
+    if (isHighImpact) {
+      // 1. Email Alert
+      const emailEnabled = settings.email_alerts !== false;
+      const recipient = settings.alert_email || updatedChannel.user_email;
+      if (emailEnabled) {
+        try {
+          await sendEmail({
+            to: recipient,
+            subject: `🚨 [HIGH IMPACT CHANGE] Price/Plan Alert on ${updatedChannel.name}`,
+            text: `Hi there,\n\nCognify detected a High Impact Price or Plan change on monitored page: ${updatedChannel.name} (${updatedChannel.url}).\n\nDetails: ${alertDesc}\n\nReview side-by-side visual diffs in your workspace dashboard.`,
+            html: `
+              <div style="font-family: sans-serif; padding: 20px; max-width: 600px; border: 1px solid #ef4444; border-radius: 12px; background-color: #fafafa; text-align: left;">
+                <h2 style="color: #ef4444; margin-top: 0;">🚨 High Impact Change Alert</h2>
+                <p>Hello,</p>
+                <p>We detected a critical price or plan modification on your monitored channel: <strong>${updatedChannel.name}</strong>.</p>
+                <table style="width: 100%; border-collapse: collapse; margin: 15px 0; text-align: left;">
+                  <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; font-weight: bold; width: 120px;">Target URL:</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #e4e4e7;"><a href="${updatedChannel.url}">${updatedChannel.url}</a></td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; font-weight: bold;">Details:</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #e4e4e7; color: #ef4444; font-weight: bold;">${alertDesc}</td>
+                  </tr>
+                </table>
+                <a href="${process.env.NEXT_PUBLIC_CLIENT_URL || 'http://localhost:3000'}/dashboard" style="display: inline-block; padding: 10px 18px; color: #fff; background-color: #ef4444; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Open Intelligence Center</a>
+              </div>
+            `
+          });
+        } catch (mailErr) {
+          console.error('Failed to send high impact alert email:', mailErr);
+        }
+      }
+
+      // 2. Slack Webhook Dispatch
+      const slackWebhook = settings.slack_webhook;
+      if (slackWebhook) {
+        try {
+          await fetch(slackWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: `🚨 *[HIGH IMPACT PRICE ALERT] Modification detected on ${updatedChannel.name}*\n*Target:* ${updatedChannel.url}\n*Change Details:* ${alertDesc}`
+            })
+          });
+        } catch (slackErr) {
+          console.error('Failed to dispatch Slack high impact webhook:', slackErr);
+        }
+      }
+
+      // 3. Discord Webhook Dispatch
+      const discordWebhook = settings.discord_webhook;
+      if (discordWebhook) {
+        try {
+          await fetch(discordWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: `🚨 **[HIGH IMPACT PRICE ALERT] Modification detected on ${updatedChannel.name}**`,
+              embeds: [
+                {
+                  title: updatedChannel.name,
+                  url: updatedChannel.url,
+                  description: alertDesc,
+                  color: 15548997
+                }
+              ]
+            })
+          });
+        } catch (discordErr) {
+          console.error('Failed to dispatch Discord high impact webhook:', discordErr);
+        }
       }
     }
 

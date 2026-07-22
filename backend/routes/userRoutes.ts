@@ -1,16 +1,13 @@
 import express from 'express';
-import { getUsers, registerUser, loginUser, updateUserProfile } from '../controllers/userController.js';
+import { getUsers, registerUser, loginUser, updateUserProfile, getUserSettings, updateUserSettings } from '../controllers/userController.js';
 
 const router = express.Router();
-
-// Route for getting all users (debug) and registering a new user
-// router.route('/')
-//     .get(getUsers)
-//     .post(registerUser);
 
 // Route for authenticating/logging in a user
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.put('/profile', updateUserProfile);
+router.get('/settings', getUserSettings);
+router.post('/settings', updateUserSettings);
 
 export default router;

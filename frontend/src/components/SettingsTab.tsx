@@ -29,6 +29,35 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
 
   // Load settings and profile details on mount
   useEffect(() => {
+    const fetchDbSettings = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+        const res = await fetch(`${apiUrl}/api/users/settings?email=${encodeURIComponent(userEmail)}`);
+        if (res.ok) {
+          const dbData = await res.json();
+          setEmailAlerts(dbData.email_alerts ?? true);
+          setAlertEmail(dbData.alert_email || userEmail);
+          setSlackWebhook(dbData.slack_webhook || '');
+          setDiscordWebhook(dbData.discord_webhook || '');
+          
+          // Sync local storage
+          const currentSettings = {
+            emailAlerts: dbData.email_alerts ?? true,
+            alertEmail: dbData.alert_email || userEmail,
+            slackWebhook: dbData.slack_webhook || '',
+            discordWebhook: dbData.discord_webhook || '',
+            geminiApiKey: localStorage.getItem(settingsKey) ? JSON.parse(localStorage.getItem(settingsKey) || '{}').geminiApiKey : '',
+            aiProvider: localStorage.getItem(settingsKey) ? JSON.parse(localStorage.getItem(settingsKey) || '{}').aiProvider : 'gemini'
+          };
+          localStorage.setItem(settingsKey, JSON.stringify(currentSettings));
+        }
+      } catch (e) {
+        console.warn('Failed to fetch user settings from backend, falling back to local cache:', e);
+      }
+    };
+
+    fetchDbSettings();
+
     const savedSettings = localStorage.getItem(settingsKey);
     if (savedSettings) {
       try {
@@ -58,8 +87,8 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
     }
   }, [settingsKey, userEmail]);
 
-  // General helper to save all settings to localStorage
-  const saveSettings = (updatedFields: any) => {
+  // General helper to save all settings to localStorage & backend
+  const saveSettings = async (updatedFields: any) => {
     const currentSettings = {
       emailAlerts,
       alertEmail: alertEmail || userEmail,
@@ -70,6 +99,23 @@ export default function SettingsTab({ userEmail, onProfileUpdated }: SettingsTab
       ...updatedFields
     };
     localStorage.setItem(settingsKey, JSON.stringify(currentSettings));
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+      await fetch(`${apiUrl}/api/users/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          emailAlerts: currentSettings.emailAlerts,
+          alertEmail: currentSettings.alertEmail,
+          slackWebhook: currentSettings.slackWebhook,
+          discordWebhook: currentSettings.discordWebhook
+        })
+      });
+    } catch (e) {
+      console.warn('Failed to sync settings with backend:', e);
+    }
   };
 
   const handleToggleEmail = () => {

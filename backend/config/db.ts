@@ -71,6 +71,19 @@ const connectDB = async () => {
     `;
     await client.query(createScanHistoryTableQuery);
 
+    // Auto-create user_settings table
+    const createSettingsTableQuery = `
+      CREATE TABLE IF NOT EXISTS user_settings (
+        user_email VARCHAR(100) PRIMARY KEY,
+        email_alerts BOOLEAN DEFAULT TRUE,
+        alert_email VARCHAR(100) DEFAULT '',
+        slack_webhook TEXT DEFAULT '',
+        discord_webhook TEXT DEFAULT '',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await client.query(createSettingsTableQuery);
+
     client.release();
     console.log('Database tables verified and migrated');
   } catch (error) {
