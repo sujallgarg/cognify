@@ -126,10 +126,18 @@ router.post('/', async (req, res) => {
   try {
     // Check if the URL is already being monitored by this user
     const checkDuplicate = await pool.query(
-      'SELECT id FROM channels WHERE user_email = $1 AND LOWER(TRIM(url)) = LOWER(TRIM($2))',
-      [email, url]
+      'SELECT url FROM channels WHERE LOWER(TRIM(user_email)) = $1',
+      [email.trim().toLowerCase()]
     );
-    if (checkDuplicate.rows.length > 0) {
+    const normalizeUrl = (u: string): string => {
+      let norm = u.trim().toLowerCase();
+      norm = norm.replace(/^(https?:\/\/)?(www\.)?/, '');
+      norm = norm.replace(/\/$/, '');
+      return norm;
+    };
+    const targetNorm = normalizeUrl(url);
+    const exists = checkDuplicate.rows.some((row: any) => normalizeUrl(row.url) === targetNorm);
+    if (exists) {
       return res.status(400).json({ message: 'This URL is already being monitored by you.' });
     }
 

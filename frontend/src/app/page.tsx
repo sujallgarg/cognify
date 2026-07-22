@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye,
   Activity,
@@ -116,58 +115,33 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section id="hero" className="py-20 md:py-32 px-6 md:px-12 max-w-7xl mx-auto flex flex-col items-center text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full mb-6"
-        >
+        <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full mb-6">
           <Sparkles className="h-4 w-4 text-white" />
           <span className="text-xs font-semibold text-muted tracking-wide uppercase">Powered by Gemini 2.5 Flash</span>
-        </motion.div>
+        </div>
 
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="text-4xl md:text-7xl font-extrabold tracking-tight max-w-4xl leading-tight md:leading-[1.1] mb-8"
-        >
+        <h1 className="text-4xl md:text-7xl font-extrabold tracking-tight max-w-4xl leading-tight md:leading-[1.1] mb-8">
           Website Change Intelligence,{' '}
           <span className="bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
             Explained by AI
           </span>
-        </motion.h1>
+        </h1>
 
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="text-muted text-base md:text-xl max-w-2xl mb-10 font-normal leading-relaxed"
-        >
+        <p className="text-muted text-base md:text-xl max-w-2xl mb-10 font-normal leading-relaxed">
           Stop comparing raw HTML. Cognify AI extracts semantic content changes, removes noise, and explains the business impact instantly.
-        </motion.p>
+        </p>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="flex flex-col sm:flex-row gap-4 justify-center w-full"
-        >
+        <div className="flex flex-col sm:flex-row gap-4 justify-center w-full">
           <Link href={user ? "/dashboard" : "/register"} className="bg-primary hover:bg-primary-hover text-black text-base font-semibold px-8 py-4 rounded-xl transition-all shadow-lg shadow-white/10 flex items-center justify-center gap-2">
             Start Monitoring Free <ArrowRight className="h-5 w-5" />
           </Link>
           <a href="#demo" className="glass hover:bg-white/5 text-foreground text-base font-semibold px-8 py-4 rounded-xl transition-all flex items-center justify-center gap-2">
             See AI Diff Demo
           </a>
-        </motion.div>
+        </div>
 
         {/* Hero Interactive UI Demo Preview */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          className="mt-16 w-full max-w-5xl rounded-2xl glass p-1 border border-white/10 shadow-2xl relative"
-        >
+        <div className="mt-16 w-full max-w-5xl rounded-2xl glass p-1 border border-white/10 shadow-2xl relative">
           <div className="bg-[#09090B] rounded-xl overflow-hidden aspect-[16/9] border border-white/5 flex flex-col">
             <div className="h-10 bg-black/40 border-b border-white/5 flex items-center px-4 justify-between">
               <div className="flex space-x-2">
@@ -230,7 +204,7 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </section>
 
       {/* Features Grid */}
@@ -308,61 +282,43 @@ export default function LandingPage() {
           </div>
 
           <div className="min-h-[220px] font-mono text-sm leading-relaxed p-4 bg-black/40 rounded-xl border border-white/5 overflow-auto">
-            <AnimatePresence mode="wait">
-              {demoState === 'original' && (
-                <motion.div
-                  key="original"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
-                  <p className="text-muted"># SaaS API Pricing Plans</p>
-                  <p className="mt-2">• Free Plan: 1,000 API requests / month</p>
-                  <p>• Developer Plan: $19/mo for 50,000 requests</p>
-                  <p>• Growth Plan: $49/mo for 200,000 requests</p>
-                </motion.div>
-              )}
-              {demoState === 'changed' && (
-                <motion.div
-                  key="changed"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
-                  <p className="text-muted"># SaaS API Pricing Plans</p>
-                  <p className="mt-2">• Free Plan: 1,000 API requests / month</p>
-                  <p className="text-red-400 line-through">• Developer Plan: $19/mo for 50,000 requests</p>
-                  <p className="text-green-400 bg-white/5 inline-block px-1 rounded">• Developer Plan: $29/mo for 40,000 requests</p>
-                  <p className="mt-1">• Growth Plan: $49/mo for 200,000 requests</p>
-                </motion.div>
-              )}
-              {demoState === 'ai' && (
-                <motion.div
-                  key="ai"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="font-sans space-y-4"
-                >
-                  <div className="flex items-center gap-2 border-b border-white/5 pb-2">
-                    <span className="px-2 py-0.5 rounded bg-white/10 text-white border border-white/20 text-xs font-bold uppercase">Importance: HIGH</span>
-                    <span className="text-xs text-muted">Confidence Score: 98%</span>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-white">Summary of Change:</p>
-                    <p className="text-muted text-sm">Developer Plan pricing increased from $19 to $29 per month, while API request limits were decreased from 50k to 40k.</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-white">Why It Matters:</p>
-                    <p className="text-muted text-sm">This is a 52% cost-per-request rate hike on the entry tier. It indicates margin pressures or prep for higher tier expansion.</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-white">Recommended Action:</p>
-                    <p className="text-muted text-sm">Update comparative sales collateral and alert marketing teams of competitor pricing revision.</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {demoState === 'original' && (
+              <div>
+                <p className="text-muted"># SaaS API Pricing Plans</p>
+                <p className="mt-2">• Free Plan: 1,000 API requests / month</p>
+                <p>• Developer Plan: $19/mo for 50,000 requests</p>
+                <p>• Growth Plan: $49/mo for 200,000 requests</p>
+              </div>
+            )}
+            {demoState === 'changed' && (
+              <div>
+                <p className="text-muted"># SaaS API Pricing Plans</p>
+                <p className="mt-2">• Free Plan: 1,000 API requests / month</p>
+                <p className="text-red-400 line-through">• Developer Plan: $19/mo for 50,000 requests</p>
+                <p className="text-green-400 bg-white/5 inline-block px-1 rounded">• Developer Plan: $29/mo for 40,000 requests</p>
+                <p className="mt-1">• Growth Plan: $49/mo for 200,000 requests</p>
+              </div>
+            )}
+            {demoState === 'ai' && (
+              <div className="font-sans space-y-4">
+                <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                  <span className="px-2 py-0.5 rounded bg-white/10 text-white border border-white/20 text-xs font-bold uppercase">Importance: HIGH</span>
+                  <span className="text-xs text-muted">Confidence Score: 98%</span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-white">Summary of Change:</p>
+                  <p className="text-muted text-sm">Developer Plan pricing increased from $19 to $29 per month, while API request limits were decreased from 50k to 40k.</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-white">Why It Matters:</p>
+                  <p className="text-muted text-sm">This is a 52% cost-per-request rate hike on the entry tier. It indicates margin pressures or prep for higher tier expansion.</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-white">Recommended Action:</p>
+                  <p className="text-muted text-sm">Update comparative sales collateral and alert marketing teams of competitor pricing revision.</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -433,28 +389,18 @@ export default function LandingPage() {
                 </span>
                 <ChevronDown className={`h-5 w-5 text-muted transition-transform duration-300 ${activeFaq === index ? 'rotate-180 text-white' : ''}`} />
               </button>
-              <AnimatePresence>
-                {activeFaq === index && (
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: 'auto' }}
-                    exit={{ height: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="p-6 pt-0 border-t border-white/5 text-muted text-sm leading-relaxed bg-black/20">
-                      {faq.a}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {activeFaq === index && (
+                <div className="p-6 pt-0 border-t border-white/5 text-muted text-sm leading-relaxed bg-black/20 animate-fadeIn">
+                  {faq.a}
+                </div>
+              )}
             </div>
           ))}
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-12 px-6 md:px-12 bg-black/60">
+      <footer className="border-t border-[#18181B] py-12 px-6 md:px-12 bg-[#09090B]">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center space-x-2">
             <div className="h-8 w-8 rounded-xl bg-white flex items-center justify-center">

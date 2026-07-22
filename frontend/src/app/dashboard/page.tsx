@@ -342,7 +342,7 @@ export default function DashboardPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryText, setSummaryText] = useState('');
 
-  const handleSummarizeChannel = (channel: Channel) => {
+  const handleSummarizeChannel = async (channel: Channel) => {
     // Check AI summary quota limit
     if (!checkQuotaLimits(0, 1)) return;
 
@@ -358,7 +358,14 @@ export default function DashboardPage() {
       } catch (e) {}
     }
 
-    setTimeout(() => {
+    try {
+      // Fetch scan history from backend
+      const res = await fetch(`${apiUrl}/api/channels/history?channel_id=${channel.id}`);
+      let historyLogs: any[] = [];
+      if (res.ok) {
+        historyLogs = await res.json();
+      }
+
       let aiProviderName = 'Google Gemini';
       const settings = user?.email ? localStorage.getItem(`cognify_settings_${user.email}`) : null;
       if (settings) {
@@ -370,8 +377,26 @@ export default function DashboardPage() {
         } catch (e) {}
       }
 
-      const hasChange = channel.alert_type && channel.alert_type.includes('ALERT');
-      const changeDesc = channel.alert_desc || 'No content changes detected. Webpage matches initial baseline snapshot.';
+      // Filter history logs that have changes
+      const changeLogs = historyLogs.filter(h => h.status_type !== 'NO CHANGES' && h.status_type !== 'NORMAL' && h.status_type !== 'NO ALERT');
+
+      let logsContent = '';
+      if (changeLogs.length > 0) {
+        logsContent = changeLogs.map((h, idx) => {
+          const scanTime = new Date(h.scan_time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+          return `${idx + 1}. **[${h.status_type}] Detected at ${scanTime}**
+   - **What changed:** ${h.description}
+   - **Why (AI Explanation):** ${h.explanation || 'Content or layout modifications detected on the monitored page.'}`;
+        }).join('\n\n');
+      } else {
+        const timeStr = channel.last_scanned_at
+          ? new Date(channel.last_scanned_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+          : 'Recently';
+        logsContent = `1. **[NO CHANGES] Verified at ${timeStr}**
+   - **What changed:** Baseline content matches current snapshot. No text revisions detected.
+   - **Why:** Target website remains steady without dynamic plan/price variations.`;
+      }
+
       const timeStr = channel.last_scanned_at
         ? new Date(channel.last_scanned_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
         : 'Recently';
@@ -382,39 +407,60 @@ export default function DashboardPage() {
 • Scan Interval: ${channel.interval}
 • Last Scanned: ${timeStr}
 • AI Engine: ${aiProviderName}
-• Status: ${hasChange ? 'Content Modifications Identified' : 'Baseline Content Verified'}
 
 ---
 
-#### Summary of Key Findings:
-${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:** Website content, pricing terms, or structural text modified on the monitored target.\n3. **Recommended Action:** Review the updated target URL and adjust integration settings or request budgets accordingly.` : `1. **Baseline Status:** No structural or pricing modifications detected during the latest automated scan.\n2. **Content Verification:** Webpage text matches baseline snapshot.\n3. **Monitoring Status:** Active background visual diff engine running on ${channel.interval.toLowerCase()} schedule.`}`;
+#### 📋 Monitored Timeline of Changes:
+
+${logsContent}
+
+---
+
+#### 💡 Summary of Key Findings:
+- **Status:** ${channel.alert_type ? 'Content Revisions Identified' : 'Baseline Verified'}
+- **Activity Log:** Automated visual diff monitoring is active on a ${channel.interval.toLowerCase()} schedule.
+- **Recommended Action:** Review visual side-by-side highlights in the workspace dashboard if adjustments are required.`;
 
       setSummaryText(generatedSummary);
       setSummaryLoading(false);
       addNotification('AI Summary Generated', `Generated ${aiProviderName} summary for ${channel.name}`);
-    }, 700);
+    } catch (err) {
+      console.error('Failed to generate summary:', err);
+      setSummaryLoading(false);
+    }
   };
 
   const [dispatchStatus, setDispatchStatus] = useState<string | null>(null);
 
   const handleDispatchSummary = async (destination: 'email' | 'slack' | 'discord') => {
     if (!summaryModalChannel || !user) return;
+
+    let recipientEmail = user.email;
+    let webhookUrl = '';
+
+    const settings = localStorage.getItem(`cognify_settings_${user.email}`);
+    if (settings) {
+      try {
+        const parsed = JSON.parse(settings);
+        if (parsed.alertEmail) recipientEmail = parsed.alertEmail;
+        if (destination === 'slack' && parsed.slackWebhook) webhookUrl = parsed.slackWebhook;
+        if (destination === 'discord' && parsed.discordWebhook) webhookUrl = parsed.discordWebhook;
+      } catch (e) {}
+    }
+
+    if (destination === 'slack' && !webhookUrl) {
+      alert('Please configure your Slack Webhook URL in Settings first.');
+      return;
+    }
+
+    if (destination === 'discord' && !webhookUrl) {
+      alert('Please configure your Discord Webhook URL in Settings first.');
+      return;
+    }
+
     setDispatchStatus(destination);
 
     try {
-      let recipientEmail = user.email;
-      let webhookUrl = '';
-
-      const settings = localStorage.getItem(`cognify_settings_${user.email}`);
-      if (settings) {
-        try {
-          const parsed = JSON.parse(settings);
-          if (parsed.alertEmail) recipientEmail = parsed.alertEmail;
-          if (destination === 'slack' && parsed.slackWebhook) webhookUrl = parsed.slackWebhook;
-          if (destination === 'discord' && parsed.discordWebhook) webhookUrl = parsed.discordWebhook;
-        } catch (e) {}
-      }
-
       const res = await fetch(`${apiUrl}/api/channels/summary/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -553,9 +599,16 @@ ${hasChange ? `1. **Detected Change:** ${changeDesc}\n2. **Operational Impact:**
       formattedUrl = `https://${formattedUrl}`;
     }
 
-    // Check duplicate URL
+    // Check duplicate URL with normalization
+    const normalizeUrl = (u: string) => {
+      let norm = u.trim().toLowerCase();
+      norm = norm.replace(/^(https?:\/\/)?(www\.)?/, '');
+      norm = norm.replace(/\/$/, '');
+      return norm;
+    };
+    const targetNorm = normalizeUrl(formattedUrl);
     const isDuplicate = channels.some(
-      (c) => c.url.trim().toLowerCase() === formattedUrl.toLowerCase()
+      (c) => normalizeUrl(c.url) === targetNorm
     );
     if (isDuplicate) {
       addNotification('Duplicate Target', 'This URL is already in your monitor list.');
