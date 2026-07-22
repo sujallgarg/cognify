@@ -3,9 +3,19 @@ import { sendEmail } from '../config/mailer.js';
 
 async function scrapePage(url: string): Promise<string> {
   try {
-    const response = await fetch(url, {
+    let targetUrl = url;
+    try {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('_cb', Date.now().toString());
+      targetUrl = urlObj.toString();
+    } catch (e) {}
+
+    const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       },
       signal: AbortSignal.timeout(6000)
     });
