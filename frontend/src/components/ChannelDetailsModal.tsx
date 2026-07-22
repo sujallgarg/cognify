@@ -140,6 +140,92 @@ export default function ChannelDetailsModal({
     };
   }, [currentChannel.id, apiUrl]);
 
+  // Helper to compute smart focused diff and impact severity analysis
+  const computeSmartDiff = () => {
+    const orig = currentChannel.original_text || '';
+    const last = currentChannel.last_text || '';
+    const isAlert = currentChannel.alert_type?.includes('ALERT');
+
+    if (!isAlert && orig === last) {
+      const allLines = orig ? orig.split('\n').slice(0, 8).map((l, i) => ({ num: i + 1, text: l, isDiff: false })) : [];
+      return {
+        severity: 'NORMAL',
+        severityLabel: 'NORMAL: Baseline Verified',
+        summaryLines: ['No structural or price changes detected. Current snapshot matches baseline 100%.'],
+        changedBeforeLines: allLines,
+        changedAfterLines: allLines,
+      };
+    }
+
+    const origLines = orig.split('\n').map(l => l.trim()).filter(Boolean);
+    const newLines = last.split('\n').map(l => l.trim()).filter(Boolean);
+
+    const removed: { num: number; text: string }[] = [];
+    const added: { num: number; text: string }[] = [];
+    const highlights: string[] = [];
+
+    // Find removed or modified lines
+    origLines.forEach((line, idx) => {
+      if (!newLines.includes(line)) {
+        removed.push({ num: idx + 1, text: line });
+      }
+    });
+
+    // Find added lines
+    newLines.forEach((line, idx) => {
+      if (!origLines.includes(line)) {
+        added.push({ num: idx + 1, text: line });
+      }
+    });
+
+    // Check for Price or Plan changes (HIGH IMPACT)
+    const isPriceChange = (currentChannel.alert_desc || '').toLowerCase().includes('price') || 
+                          removed.some(l => /\$\d+|\d+\$|₹\d+|\bprice\b|\bplan\b/i.test(l.text)) ||
+                          added.some(l => /\$\d+|\d+\$|₹\d+|\bprice\b|\bplan\b/i.test(l.text));
+
+    let severity = 'MEDIUM';
+    let severityLabel = 'MEDIUM IMPACT: Content Added/Modified';
+
+    if (isPriceChange) {
+      severity = 'HIGH';
+      severityLabel = 'HIGH IMPACT: Price / Plan Change';
+    } else if (removed.length === 0 && added.length === 0) {
+      severity = 'NORMAL';
+      severityLabel = 'NORMAL CHANGE: Formatting Update';
+    }
+
+    // Build human readable bullet summaries
+    if (isPriceChange) {
+      const oldPriceMatch = removed.find(l => /\$\d+|\d+\$|₹\d+|\d+/i.test(l.text))?.text || 'Previous Price';
+      const newPriceMatch = added.find(l => /\$\d+|\d+\$|₹\d+|\d+/i.test(l.text))?.text || 'New Price';
+      highlights.push(`Product / Plan price changed: "${oldPriceMatch}" ➔ "${newPriceMatch}"`);
+    }
+
+    if (added.length > 0) {
+      added.slice(0, 2).forEach(item => {
+        highlights.push(`New content added: "${item.text.substring(0, 70)}${item.text.length > 70 ? '...' : ''}"`);
+      });
+    }
+
+    if (removed.length > 0 && !isPriceChange) {
+      removed.slice(0, 2).forEach(item => {
+        highlights.push(`Content removed/modified: "${item.text.substring(0, 70)}${item.text.length > 70 ? '...' : ''}"`);
+      });
+    }
+
+    if (highlights.length === 0) {
+      highlights.push(currentChannel.alert_desc || 'Detected content modifications on target webpage.');
+    }
+
+    return {
+      severity,
+      severityLabel,
+      summaryLines: highlights,
+      changedBeforeLines: removed.length > 0 ? removed : origLines.slice(0, 8).map((l, i) => ({ num: i + 1, text: l })),
+      changedAfterLines: added.length > 0 ? added : newLines.slice(0, 8).map((l, i) => ({ num: i + 1, text: l })),
+    };
+  };
+
   const handleScan = async () => {
     // Check if scan quota limit reached for active plan
     const maxScans = subPlan === 'TEAM' ? 50000 : subPlan === 'PROFESSIONAL' ? 10000 : 25;
@@ -347,94 +433,115 @@ export default function ChannelDetailsModal({
           </div>
 
           {/* Summary of What Changed */}
-          <div className="p-4 rounded-xl bg-[#09090B] border border-[#18181B] space-y-2 text-left">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-amber-400" />
-                <span className="text-sm font-semibold text-white">What Changed</span>
+          {(() => {
+            const smartDiff = computeSmartDiff();
+            return (
+              <div className="p-4 rounded-xl bg-[#09090B] border border-[#18181B] space-y-3 text-left">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-amber-400" />
+                    <span className="text-sm font-semibold text-white">What Changed</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    smartDiff.severity === 'HIGH'
+                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      : smartDiff.severity === 'MEDIUM'
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      : 'bg-white/5 text-[#A1A1AA] border-white/10'
+                  }`}>
+                    {smartDiff.severityLabel}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 pl-6">
+                  {smartDiff.summaryLines.map((bullet, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-xs text-[#E4E4E7] leading-relaxed">
+                      <span className="text-[#A1A1AA] font-bold">•</span>
+                      <span>{bullet}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
-                currentChannel.alert_type?.includes('ALERT')
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                  : 'bg-white/5 text-[#A1A1AA] border-white/10'
-              }`}>
-                {currentChannel.alert_type?.includes('ALERT') ? 'Change Alert' : 'No Changes'}
-              </span>
-            </div>
-            <p className="text-xs text-[#A1A1AA] leading-relaxed pl-6">
-              {currentChannel.alert_desc || 'No content changes detected. Baseline snapshot matches current webpage text.'}
-            </p>
-          </div>
+            );
+          })()}
 
           {/* Visual Code Diff Snapshots (Before vs After) */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-white">Visual Code Diff Snapshots</span>
-              <span className="text-[10px] text-[#71717A] font-mono">Side-by-side comparison</span>
-            </div>
+          {(() => {
+            const smartDiff = computeSmartDiff();
+            const isAlert = currentChannel.alert_type?.includes('ALERT');
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-              {/* BEFORE PANEL */}
-              <div className="rounded-xl bg-[#09090B] border border-[#18181B] overflow-hidden flex flex-col">
-                <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
+            return (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${currentChannel.alert_type?.includes('ALERT') ? 'bg-rose-500/80' : 'bg-white/40'}`} />
-                    <span className="font-medium text-white">Before (Previous Baseline)</span>
+                    <span className="text-xs font-semibold text-white">Visual Code Diff Snapshots</span>
+                    <span className="text-[10px] text-[#A1A1AA] bg-white/5 border border-white/10 px-2 py-0.5 rounded font-mono">
+                      {isAlert ? 'Focused Change Lines Only' : 'Baseline Verified'}
+                    </span>
                   </div>
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-                    currentChannel.alert_type?.includes('ALERT')
-                      ? 'text-rose-400/80 bg-rose-500/10 border-rose-500/20'
-                      : 'text-[#A1A1AA] bg-white/5 border-white/10'
-                  }`}>
-                    {currentChannel.alert_type?.includes('ALERT') ? '- Previous' : 'Baseline'}
-                  </span>
+                  <span className="text-[10px] text-[#71717A] font-mono">Side-by-side comparison</span>
                 </div>
 
-                <div className="p-3 max-h-64 overflow-y-auto font-mono text-[11px] leading-relaxed bg-[#09090B]">
-                  {currentChannel.original_text ? (
-                    currentChannel.original_text.split('\n').map((line, idx) => (
-                      <div key={idx} className="flex gap-3 hover:bg-white/[0.02] py-0.5 px-1 rounded">
-                        <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{idx + 1}</span>
-                        <span className={`break-all ${currentChannel.alert_type?.includes('ALERT') ? 'text-rose-300/90' : 'text-[#E4E4E7]'}`}>{line || ' '}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                  {/* BEFORE PANEL */}
+                  <div className="rounded-xl bg-[#09090B] border border-[#18181B] overflow-hidden flex flex-col">
+                    <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${isAlert ? 'bg-rose-500/80' : 'bg-white/40'}`} />
+                        <span className="font-medium text-white">Before (Previous Baseline)</span>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-[#71717A] italic text-xs font-sans p-2">Baseline snapshot initializing...</p>
-                  )}
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                        isAlert ? 'text-rose-400/80 bg-rose-500/10 border-rose-500/20' : 'text-[#A1A1AA] bg-white/5 border-white/10'
+                      }`}>
+                        {isAlert ? '- Removed / Changed' : 'Baseline'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 max-h-64 overflow-y-auto font-mono text-[11px] leading-relaxed bg-[#09090B]">
+                      {smartDiff.changedBeforeLines.length > 0 ? (
+                        smartDiff.changedBeforeLines.map((item, idx) => (
+                          <div key={idx} className={`flex gap-3 py-0.5 px-1.5 rounded ${isAlert ? 'bg-rose-500/10 border-l-2 border-rose-500/60' : 'hover:bg-white/[0.02]'}`}>
+                            <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{item.num}</span>
+                            <span className={`break-all ${isAlert ? 'text-rose-300/90 font-medium' : 'text-[#E4E4E7]'}`}>{item.text || ' '}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-[#71717A] italic text-xs font-sans p-2">No lines modified in baseline snapshot.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* AFTER PANEL */}
+                  <div className="rounded-xl bg-[#09090B] border border-[#18181B] overflow-hidden flex flex-col">
+                    <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${isAlert ? 'bg-emerald-500/80' : 'bg-white/40'}`} />
+                        <span className="font-medium text-white">After (Current Version)</span>
+                      </div>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                        isAlert ? 'text-emerald-400/80 bg-emerald-500/10 border-emerald-500/20' : 'text-[#A1A1AA] bg-white/5 border-white/10'
+                      }`}>
+                        {isAlert ? '+ Added / Updated' : 'Current'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 max-h-64 overflow-y-auto font-mono text-[11px] leading-relaxed bg-[#09090B]">
+                      {smartDiff.changedAfterLines.length > 0 ? (
+                        smartDiff.changedAfterLines.map((item, idx) => (
+                          <div key={idx} className={`flex gap-3 py-0.5 px-1.5 rounded ${isAlert ? 'bg-emerald-500/10 border-l-2 border-emerald-500/60' : 'hover:bg-white/[0.02]'}`}>
+                            <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{item.num}</span>
+                            <span className={`break-all ${isAlert ? 'text-emerald-300/90 font-medium' : 'text-[#E4E4E7]'}`}>{item.text || ' '}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-[#71717A] italic text-xs font-sans p-2">No lines added in current snapshot.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* AFTER PANEL */}
-              <div className="rounded-xl bg-[#09090B] border border-[#18181B] overflow-hidden flex flex-col">
-                <div className="px-3.5 py-2 bg-black border-b border-[#18181B] flex items-center justify-between text-[11px] text-[#71717A]">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${currentChannel.alert_type?.includes('ALERT') ? 'bg-emerald-500/80' : 'bg-white/40'}`} />
-                    <span className="font-medium text-white">After (Current Version)</span>
-                  </div>
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-                    currentChannel.alert_type?.includes('ALERT')
-                      ? 'text-emerald-400/80 bg-emerald-500/10 border-emerald-500/20'
-                      : 'text-[#A1A1AA] bg-white/5 border-white/10'
-                  }`}>
-                    {currentChannel.alert_type?.includes('ALERT') ? '+ Current' : 'Current'}
-                  </span>
-                </div>
-
-                <div className="p-3 max-h-64 overflow-y-auto font-mono text-[11px] leading-relaxed bg-[#09090B]">
-                  {currentChannel.last_text ? (
-                    currentChannel.last_text.split('\n').map((line, idx) => (
-                      <div key={idx} className="flex gap-3 hover:bg-white/[0.02] py-0.5 px-1 rounded">
-                        <span className="text-[#52525B] select-none text-right w-6 text-[10px]">{idx + 1}</span>
-                        <span className={`break-all ${currentChannel.alert_type?.includes('ALERT') ? 'text-emerald-300/90' : 'text-[#E4E4E7]'}`}>{line || ' '}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-[#71717A] italic text-xs font-sans p-2">Current snapshot matching baseline...</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Historical Scans */}
           <div className="space-y-3">
